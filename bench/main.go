@@ -78,8 +78,12 @@ func run() error {
 			}
 		}
 	}
-	get := func(path string) (int, error) {
-		resp, err := client.Get(*base + path)
+	request := func(method, path string) (int, error) {
+		req, err := http.NewRequest(method, *base+path, nil)
+		if err != nil {
+			return 0, err
+		}
+		resp, err := client.Do(req)
 		if err != nil {
 			return 0, err
 		}
@@ -98,7 +102,7 @@ func run() error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			code, err := get(*faultPath + "?delay=" + faultDelay.String())
+			code, err := request(http.MethodGet, *faultPath+"?delay="+faultDelay.String())
 			if err != nil {
 				code = 0
 			}
@@ -126,7 +130,7 @@ func run() error {
 	durations := []time.Duration{}
 	for i := 0; i < 40; i++ {
 		start := time.Now()
-		code, err := get(*healthyPath)
+		code, err := request(http.MethodGet, *healthyPath)
 		if err != nil || code != 200 {
 			wg.Wait()
 			return fmt.Errorf("healthy group failed under saturation: HTTP %d, %v", code, err)
@@ -138,7 +142,7 @@ func run() error {
 	if counts[503] == 0 || counts[200] == 0 || counts[0] != 0 {
 		return fmt.Errorf("unexpected fault group load outcomes: %v", counts)
 	}
-	code, err := get(*faultPath + "?crash=1")
+	code, err := request(http.MethodPost, *faultPath+"?crash=1")
 	if err != nil || code != 502 {
 		return fmt.Errorf("crash did not yield 502: %d %v", code, err)
 	}
@@ -178,7 +182,7 @@ func run() error {
 			return fmt.Errorf("healthy group worker changed during crash")
 		}
 	}
-	code, err = get(*healthyPath)
+	code, err = request(http.MethodGet, *healthyPath)
 	if err != nil || code != 200 {
 		return fmt.Errorf("healthy group failed after crash")
 	}

@@ -62,7 +62,7 @@ Linux에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 보내고
 ```sh
 curl http://127.0.0.1:8080/a/work
 curl 'http://127.0.0.1:8080/b/work?delay=3s'
-curl 'http://127.0.0.1:8080/b/work?crash=1'
+curl -X POST 'http://127.0.0.1:8080/b/work?crash=1'
 curl http://127.0.0.1:9090/status
 go run ./bench
 ```

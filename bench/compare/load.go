@@ -89,6 +89,7 @@ func trial(ctx context.Context, o options, variant string, repeat int) (trialRes
 		return trialResult{}, fmt.Errorf("unmatched topology resources: apps=%d active=%d queued=%d", appProcesses, executionBudget, queueBudget)
 	}
 	before := f.protectedPIDs(variant)
+	beforeRestarts := f.faultRestarts(variant)
 	transport := &http.Transport{Proxy: nil, MaxIdleConns: 256, MaxIdleConnsPerHost: 256, MaxConnsPerHost: 256, IdleConnTimeout: 10 * time.Second}
 	client := &http.Client{Transport: transport, Timeout: 4 * time.Second}
 	defer transport.CloseIdleConnections()
@@ -142,7 +143,11 @@ func trial(ctx context.Context, o options, variant string, repeat int) (trialRes
 		}
 	}
 	pending.Wait()
-	result := trialResult{Variant: variant, Repeat: repeat, AppProcesses: appProcesses, ExecutionBudget: executionBudget, QueueBudget: queueBudget, ProtectedPIDsUnchanged: reflect.DeepEqual(before, f.protectedPIDs(variant))}
+	restarts := f.faultRestarts(variant) - beforeRestarts
+	if o.Scenario == "crash" && restarts == 0 {
+		return trialResult{}, fmt.Errorf("no fault worker restart observed; crash injection was not verified (reduce load or increase fault/recovery duration)")
+	}
+	result := trialResult{Variant: variant, Repeat: repeat, AppProcesses: appProcesses, ExecutionBudget: executionBudget, QueueBudget: queueBudget, ProtectedPIDsUnchanged: reflect.DeepEqual(before, f.protectedPIDs(variant)), FaultWorkerRestarts: restarts}
 	for _, p := range phases {
 		result.Phases = append(result.Phases, phaseResult{Name: p.name, DurationSeconds: p.duration.Seconds(), Healthy: p.healthy.summarize(p.duration), Fault: p.fault.summarize(p.duration)})
 	}
@@ -187,11 +192,15 @@ func generate(ctx context.Context, client *http.Client, path string, rate int, s
 			continue
 		}
 		target := path
+		method := http.MethodGet
 		if scenario == "delay" {
 			target += "?delay=1s"
 		}
 		if scenario == "crash" && i%int64(rate) == 0 {
 			target += "?crash=1"
+			// The worker may exit after reading this request. POST prevents
+			// automatic replay on a reused connection with no response.
+			method = http.MethodPost
 		}
 		samples.mu.Lock()
 		samples.sent++
@@ -201,7 +210,7 @@ func generate(ctx context.Context, client *http.Client, path string, rate int, s
 			defer pending.Done()
 			defer func() { <-capacity }()
 			started := time.Now()
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+			req, err := http.NewRequestWithContext(ctx, method, target, nil)
 			var resp *http.Response
 			if err == nil {
 				resp, err = client.Do(req)

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -40,6 +41,7 @@ type trialResult struct {
 	ExecutionBudget        int           `json:"execution_budget"`
 	QueueBudget            int           `json:"queue_budget"`
 	ProtectedPIDsUnchanged bool          `json:"protected_pids_unchanged"`
+	FaultWorkerRestarts    int           `json:"fault_worker_restarts"`
 	Phases                 []phaseResult `json:"phases"`
 }
 
@@ -116,7 +118,7 @@ func run() error {
 		"scenario": o.Scenario, "seed": o.Seed, "healthy_rate": o.HealthyRate, "fault_rate": o.FaultRate,
 		"app_sha256": appHash, "runtime_sha256": runtimeHash, "trials": results,
 		"scope":         "controlled local HTTP experiment; load generator, gateway and app processes share a host; no CPU, memory or DB isolation claim",
-		"load_contract": map[string]any{"max_inflight": 256, "late_drop_after_ms": 100, "demo_max_active_per_worker": 1, "demo_baseline_delay_ms": 5, "fault_delay_ms": 1000, "crash_interval_seconds": 1, "latency_cohort": "requests that started in each phase; in-flight work is not drained between phases"},
+		"load_contract": map[string]any{"max_inflight": 256, "late_drop_after_ms": 100, "demo_max_active_per_worker": 1, "demo_baseline_delay_ms": 5, "fault_delay_ms": 1000, "crash_interval_seconds": 1, "crash_method": http.MethodPost, "latency_cohort": "requests that started in each phase; in-flight work is not drained between phases"},
 		"topologies":    map[string]string{"A": "shared request budget and 4 shared app processes", "B": "split request budgets and 4 shared app processes", "C": "split request budgets and disjoint app processes (2+2)"},
 	}
 	var out io.Writer = os.Stdout
