@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"isolatex/internal/config"
-	"isolatex/internal/gateway"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/gateway"
 )
 
 // Launch this test binary as a real managed HTTP worker, without another build.
@@ -293,18 +293,38 @@ func TestStartupDeadlineBoundsSlowReadiness(t *testing.T) {
 	}
 }
 
-func TestCrashLoopExhaustsRestartBudget(t *testing.T) {
+func TestCrashLoopExhaustsOnlyItsOwnRestartBudget(t *testing.T) {
 	c := fixture(t)
-	delete(c.Bulkheads, "isolated")
-	c.Bulkheads["normal"].Process.Env["FAIL_START"] = "1"
+	c.Bulkheads["isolated"].Process.Env["FAIL_START"] = "1"
 	s := New(c, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err := s.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer s.Stop()
+	waitFor(t, func() bool { return s.Pools["normal"].Ready() == 1 })
+	healthyPID := s.Pools["normal"].Snapshot()[0].PID
+	g := gateway.New(c, s.Pools, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	defer g.Close()
+	server := httptest.NewServer(g)
+	defer server.Close()
+	client := &http.Client{Timeout: time.Second}
+	defer client.CloseIdleConnections()
 	deadline := time.Now().Add(40 * time.Second)
 	for {
-		w := s.Pools["normal"].Snapshot()[0]
+		w := s.Pools["isolated"].Snapshot()[0]
+		healthy := s.Pools["normal"].Snapshot()[0]
+		if !healthy.Ready || healthy.PID != healthyPID || healthy.Restarts != 0 {
+			t.Fatalf("crash loop affected another group: %+v", healthy)
+		}
+		resp, err := client.Get(server.URL + "/api/orders")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("healthy group during crash loop: %d", resp.StatusCode)
+		}
 		if w.State == "failed" {
 			if w.Restarts != 5 || w.Ready || w.PID != 0 {
 				t.Fatalf("invalid exhausted state: %+v", w)
@@ -314,6 +334,6 @@ func TestCrashLoopExhaustsRestartBudget(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatalf("restart loop did not stop: %+v", w)
 		}
-		time.Sleep(25 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 }

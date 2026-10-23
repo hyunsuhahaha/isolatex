@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -12,28 +13,49 @@ import (
 	"syscall"
 	"time"
 
-	"isolatex/internal/config"
-	"isolatex/internal/gateway"
-	"isolatex/internal/supervisor"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/gateway"
+	"github.com/hyunsuhahaha/isolatex/internal/logging"
+	"github.com/hyunsuhahaha/isolatex/internal/supervisor"
+)
+
+// Set by the distribution build; source builds keep explicit development values.
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildDate = "unknown"
 )
 
 func main() {
-	if err := run(); err != nil {
+	logs := logging.NewWriter(os.Stderr, 256, 64<<10)
+	exitCode := 0
+	if err := run(logs); err != nil {
 		slog.Error("runtime_failed", "error", err)
-		os.Exit(1)
+		exitCode = 1
+	}
+	flush, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	_ = logs.Close(flush)
+	cancel()
+	if exitCode != 0 {
+		os.Exit(exitCode)
 	}
 }
 
-func run() error {
+func run(output io.Writer) error {
 	filename := flag.String("config", "isolatex.yaml", "YAML configuration path (commands resolve from current directory)")
 	check := flag.Bool("check", false, "validate configuration without starting servers or workers")
 	debug := flag.Bool("debug", false, "include request outcome logs")
+	showVersion := flag.Bool("version", false, "print build version and exit without loading configuration")
 	flag.Parse()
+	if *showVersion {
+		fmt.Printf("isolatex %s\ncommit: %s\nbuilt: %s\n", version, commit, buildDate)
+		return nil
+	}
 	level := slog.LevelInfo
 	if *debug {
 		level = slog.LevelDebug
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	logger := slog.New(slog.NewJSONHandler(output, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(logger)
 	c, err := config.Load(*filename)
 	if err != nil {
@@ -62,6 +84,9 @@ func run() error {
 	}
 	defer s.Stop()
 	g := gateway.New(c, s.Pools, logger)
+	if logs, ok := output.(interface{ Dropped() uint64 }); ok {
+		g.RegisterLogDrops(logs.Dropped)
+	}
 	defer g.Close()
 	server := func(handler http.Handler) *http.Server {
 		return &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 64 << 10}

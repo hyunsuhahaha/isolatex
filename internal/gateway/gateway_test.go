@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"isolatex/internal/config"
-	"isolatex/internal/pool"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/pool"
 )
 
 func testGateway(t *testing.T, handler http.Handler, options ...func(*config.Config)) (*Gateway, *httptest.Server) {

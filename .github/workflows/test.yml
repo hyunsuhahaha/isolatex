@@ -20,9 +20,27 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
           cache: true
+      - name: Check formatting
+        shell: bash
+        run: |
+          unformatted="$(git ls-files -z '*.go' | xargs -0 gofmt -l)"
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+      - run: go mod verify
       - run: go test ./... -count=1 -timeout=90s
       - run: go vet ./...
       - if: runner.os == 'Linux'
         run: go test -race ./... -count=1 -timeout=90s
       - if: runner.os == 'Linux' && matrix.go == 'stable'
         run: bash scripts/smoke.sh
+      - name: Verify distribution script and native archive
+        if: runner.os == 'Linux' && matrix.go == 'stable'
+        run: |
+          for script in scripts/*.sh; do bash -n "$script"; done
+          TARGETS=linux/amd64 bash scripts/build-dist.sh ci
+          (cd dist && sha256sum -c SHA256SUMS)
+          mkdir -p .tools/dist-check
+          tar -xzf dist/isolatex_ci_linux_amd64.tar.gz -C .tools/dist-check
+          (cd .tools/dist-check && bin/isolatex -version && bin/isolatex -config isolatex.yaml -check)

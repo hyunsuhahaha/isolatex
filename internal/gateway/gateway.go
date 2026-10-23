@@ -13,11 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/hyunsuhahaha/isolatex/internal/breaker"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/pool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"isolatex/internal/breaker"
-	"isolatex/internal/config"
-	"isolatex/internal/pool"
 )
 
 type group struct {

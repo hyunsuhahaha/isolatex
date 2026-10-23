@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"isolatex/internal/config"
-	"isolatex/internal/pool"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/pool"
 )
 
 type Supervisor struct {

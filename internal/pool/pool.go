@@ -18,6 +18,7 @@ type Worker struct {
 	ConsecutiveFailures  int
 	ConsecutiveSuccesses int
 	LastHealthCheck      time.Time
+	generation           uint64
 }
 
 type Pool struct {
@@ -45,6 +46,11 @@ func (p *Pool) Set(i int, ready bool, pid int, state string) {
 	w := &p.workers[i]
 	w.Ready, w.PID, w.State = ready, pid, state
 	if state == "starting" {
+		// In-flight requests to an exited process may finish after its
+		// replacement becomes ready on the same port. Keep load accounting
+		// local to a process generation, rather than to the reusable slot.
+		w.generation++
+		w.Active = 0
 		w.ConsecutiveFailures = 0
 		w.ConsecutiveSuccesses = 0
 	}
@@ -113,9 +119,18 @@ func (p *Pool) Pick() (*url.URL, func()) {
 		return nil, nil
 	}
 	p.workers[best].Active++
+	generation := p.workers[best].generation
 	p.next = (best + 1) % len(p.workers)
 	var once sync.Once
-	return p.workers[best].URL, func() { once.Do(func() { p.mu.Lock(); p.workers[best].Active--; p.mu.Unlock() }) }
+	return p.workers[best].URL, func() {
+		once.Do(func() {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			if p.workers[best].generation == generation {
+				p.workers[best].Active--
+			}
+		})
+	}
 }
 
 func (p *Pool) Snapshot() []Worker {

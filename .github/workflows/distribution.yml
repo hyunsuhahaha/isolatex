@@ -1,0 +1,30 @@
+name: distribution
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - run: go test ./... -count=1 -timeout=90s
+      - run: bash scripts/build-dist.sh "dev-${GITHUB_SHA::12}"
+      - name: Verify native artifact and checksums
+        run: |
+          cd dist
+          sha256sum -c SHA256SUMS
+          cd "isolatex_dev-${GITHUB_SHA::12}_linux_amd64"
+          bin/isolatex -version
+          bin/isolatex -config isolatex.yaml -check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: isolatex-distributions
+          path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error

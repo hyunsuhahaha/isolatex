@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
 )
 
 type Result int

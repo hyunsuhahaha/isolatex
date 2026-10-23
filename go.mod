@@ -1,4 +1,4 @@
-module isolatex
+module github.com/hyunsuhahaha/isolatex
 
 go 1.23.0
 

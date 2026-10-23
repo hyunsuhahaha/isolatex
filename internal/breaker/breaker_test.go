@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
 )
 
 func fixture() (*Breaker, *time.Time) {
