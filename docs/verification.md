@@ -1,5 +1,7 @@
 # v0.2 검증 기록
 
+> 아래 초기 기록의 업무별 명칭과 경로는 당시 데모 예제다. 현재 프로젝트의 범위와 격리 계약은 [설계](design.md)에 정의한다. 과거 실측 결과는 원래 출력 그대로 보존한다.
+
 검증일: 2026-10-23. Go 1.27.3, Windows amd64 및 Ubuntu on WSL2 Linux amd64. 공식 Go 배포본을 받아 SHA-256을 확인한 후 작업 폴더 전용 `.tools`에 설치했다. 도구와 빌드 결과물은 Git에서 제외한다.
 
 ## 자동 검사
@@ -76,3 +78,16 @@ CLI 장애 데모 결과:
 ```
 
 종료 로그에서 `workers_stopped`를 확인했다. P95는 이번 로컬 기능 검사에서 관측한 값이며 기존 수치와의 성능 비교 결과가 아니다. 이번 변경은 경로별 요청·프로세스 격리를 대상으로 하며 CPU·메모리의 OS 자원 상한은 추가하지 않았다.
+
+## 2026-10-24 — 범용 장애 주입과 양방향 격리
+
+데모를 임의 경로·워커에 지연, 오류 응답, 취소 무시, 준비 상태 실패, 크래시를 주입하는 방식으로 변경했다. 업무 전용 경로 조건을 제거하고 `DEMO_DELAY`, fault JSON의 `delay`·`status`로 통일했다. 기본 예제 그룹은 `/a`의 alpha와 `/b`의 beta이며, 검사 도구는 `-healthy-group`, `-fault-group`, `-healthy-path`, `-fault-path`로 대상을 지정한다.
+
+Windows 전체 테스트와 vet, Linux 전체 race 테스트와 vet가 통과했다. Linux `bash scripts/smoke.sh`는 두 그룹을 번갈아 장애 대상으로 삼아 다음 결과를 출력했다.
+
+```json
+{"fault_group":"beta","fault_status_counts":{"200":2,"503":8},"fault_worker_restarted":true,"healthy_group":"alpha","healthy_p95_ms":6.526,"healthy_pids_unchanged":true,"healthy_requests":41,"result":"passed"}
+{"fault_group":"alpha","fault_status_counts":{"200":2,"503":12,"504":6},"fault_worker_restarted":true,"healthy_group":"beta","healthy_p95_ms":6.859,"healthy_pids_unchanged":true,"healthy_requests":41,"result":"passed"}
+```
+
+양쪽 모두 보호 대상 그룹의 요청 41개가 성공하고 PID가 유지됐으며 장애를 주입한 그룹의 워커만 재시작됐다. alpha는 실행 예산 8에 워커 2개이고 데모 앱 내부 작업 한도는 워커당 1이므로 지연 주입 시 일부 요청은 요청 예산을 소진해 504가 됐다. 이 실패가 beta에 전파되지 않았는지 함께 검사했다. 수치는 이번 로컬 기능 검사 결과이며 성능 비교 결과가 아니다.

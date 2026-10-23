@@ -44,20 +44,20 @@ func TestBulkheadsRetainReservedCapacityUnderOverflow(t *testing.T) {
 				resp.Body.Close()
 				results <- resp.StatusCode
 			}
-			// Fill ERP's execution slot and queue before normal traffic arrives.
+			// Fill one group's execution slot and queue before other traffic arrives.
 			for i := 0; i < 2; i++ {
-				go request("/api/erp")
+				go request("/api/fault")
 			}
-			external, normal := g.groups[0], g.groups[1]
-			eventually(t, func() bool { a, q := external.gate.snapshot(); return a == 1 && q == 1 })
-			// Rejected ERP requests must never compete for normal's reservation.
+			isolated, normal := g.groups[0], g.groups[1]
+			eventually(t, func() bool { a, q := isolated.gate.snapshot(); return a == 1 && q == 1 })
+			// Rejected requests must never compete for another group's reservation.
 			var flood sync.WaitGroup
 			failures := make(chan string, 32)
 			for i := 0; i < 32; i++ {
 				flood.Add(1)
 				go func() {
 					defer flood.Done()
-					resp, err := s.Client().Get(s.URL + "/api/erp")
+					resp, err := s.Client().Get(s.URL + "/api/fault")
 					if err != nil {
 						failures <- err.Error()
 						return
@@ -65,7 +65,7 @@ func TestBulkheadsRetainReservedCapacityUnderOverflow(t *testing.T) {
 					body, _ := io.ReadAll(resp.Body)
 					resp.Body.Close()
 					if resp.StatusCode != 503 || !strings.Contains(string(body), "queue_full") {
-						failures <- fmt.Sprintf("ERP overflow: HTTP %d %s", resp.StatusCode, body)
+						failures <- fmt.Sprintf("isolated group overflow: HTTP %d %s", resp.StatusCode, body)
 					}
 				}()
 			}

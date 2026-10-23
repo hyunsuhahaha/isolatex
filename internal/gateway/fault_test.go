@@ -17,18 +17,18 @@ func TestCircuitOpensFailsFastAndRecovers(t *testing.T) {
 	var calls atomic.Int32
 	g, s := testGateway(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		if r.URL.Path == "/api/erp" && failing.Load() {
+		if r.URL.Path == "/api/fault" && failing.Load() {
 			w.WriteHeader(503)
 			return
 		}
 		w.WriteHeader(200)
 	}), func(c *config.Config) {
-		b := c.Bulkheads["external"]
+		b := c.Bulkheads["isolated"]
 		b.CircuitBreaker = &config.CircuitBreaker{Window: time.Second, MinRequests: 2, FailureRatio: 1, OpenTimeout: 40 * time.Millisecond}
-		c.Bulkheads["external"] = b
+		c.Bulkheads["isolated"] = b
 	})
 	for i := 0; i < 2; i++ {
-		if got := code(t, s.Client(), s.URL+"/api/erp"); got != 503 {
+		if got := code(t, s.Client(), s.URL+"/api/fault"); got != 503 {
 			t.Fatal(got)
 		}
 	}
@@ -36,7 +36,7 @@ func TestCircuitOpensFailsFastAndRecovers(t *testing.T) {
 		t.Fatalf("state=%s", state)
 	}
 	before := calls.Load()
-	resp, err := s.Client().Get(s.URL + "/api/erp")
+	resp, err := s.Client().Get(s.URL + "/api/fault")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestCircuitOpensFailsFastAndRecovers(t *testing.T) {
 	}
 	failing.Store(false)
 	time.Sleep(45 * time.Millisecond)
-	if got := code(t, s.Client(), s.URL+"/api/erp"); got != 200 {
+	if got := code(t, s.Client(), s.URL+"/api/fault"); got != 200 {
 		t.Fatal(got)
 	}
 	if state := g.groups[0].breaker.Snapshot().State; state != "closed" {
@@ -98,22 +98,22 @@ func TestLocalRejectionsDoNotTripCircuit(t *testing.T) {
 		case <-r.Context().Done():
 		}
 	}), func(c *config.Config) {
-		b := c.Bulkheads["external"]
+		b := c.Bulkheads["isolated"]
 		b.QueueSize = 0
 		b.CircuitBreaker = &config.CircuitBreaker{Window: time.Second, MinRequests: 1, FailureRatio: .5, OpenTimeout: time.Second}
-		c.Bulkheads["external"] = b
+		c.Bulkheads["isolated"] = b
 	})
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		resp, err := s.Client().Get(s.URL + "/api/erp")
+		resp, err := s.Client().Get(s.URL + "/api/fault")
 		if err == nil {
 			resp.Body.Close()
 		}
 	}()
 	<-entered
 	for i := 0; i < 4; i++ {
-		if got := code(t, s.Client(), s.URL+"/api/erp"); got != 503 {
+		if got := code(t, s.Client(), s.URL+"/api/fault"); got != 503 {
 			t.Fatal(got)
 		}
 	}

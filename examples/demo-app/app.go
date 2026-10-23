@@ -7,27 +7,26 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
 type options struct {
-	maxActive             int
-	normalDelay, erpDelay time.Duration
-	faultFile             string
+	maxActive int
+	delay     time.Duration
+	faultFile string
 }
 
 // A file applies to all replicas given the same DEMO_FAULT_FILE. Readiness is
-// independent of ERP availability unless ready=false is explicitly injected.
+// independent of injected request failures unless ready=false is explicit.
 type fault struct {
 	Ready              *bool  `json:"ready,omitempty"`
-	ERPDelay           string `json:"erp_delay,omitempty"`
-	ERPStatus          int    `json:"erp_status,omitempty"`
+	Delay              string `json:"delay,omitempty"`
+	Status             int    `json:"status,omitempty"`
 	IgnoreCancellation bool   `json:"ignore_cancellation,omitempty"`
 }
 
 func optionsFromEnv() (options, error) {
-	o := options{maxActive: 1, normalDelay: 5 * time.Millisecond, erpDelay: 50 * time.Millisecond, faultFile: os.Getenv("DEMO_FAULT_FILE")}
+	o := options{maxActive: 1, delay: 5 * time.Millisecond, faultFile: os.Getenv("DEMO_FAULT_FILE")}
 	var err error
 	if raw := os.Getenv("DEMO_MAX_ACTIVE"); raw != "" {
 		o.maxActive, err = strconv.Atoi(raw)
@@ -35,12 +34,10 @@ func optionsFromEnv() (options, error) {
 			return o, fmt.Errorf("DEMO_MAX_ACTIVE must be 1..10000")
 		}
 	}
-	for key, dst := range map[string]*time.Duration{"DEMO_NORMAL_DELAY": &o.normalDelay, "DEMO_ERP_DELAY": &o.erpDelay} {
-		if raw := os.Getenv(key); raw != "" {
-			*dst, err = parseDelay(raw)
-			if err != nil {
-				return o, fmt.Errorf("%s: %w", key, err)
-			}
+	if raw := os.Getenv("DEMO_DELAY"); raw != "" {
+		o.delay, err = parseDelay(raw)
+		if err != nil {
+			return o, fmt.Errorf("DEMO_DELAY: %w", err)
 		}
 	}
 	return o, nil
@@ -72,8 +69,8 @@ func readFault(filename string) (fault, error) {
 	if err = json.Unmarshal(data, &f); err != nil {
 		return f, err
 	}
-	if f.ERPStatus != 0 && (f.ERPStatus < 400 || f.ERPStatus > 599) {
-		return f, fmt.Errorf("erp_status must be 400..599")
+	if f.Status != 0 && (f.Status < 400 || f.Status > 599) {
+		return f, fmt.Errorf("status must be 400..599")
 	}
 	return f, nil
 }
@@ -94,26 +91,21 @@ func newHandler(o options) http.Handler {
 			w.WriteHeader(200)
 			return
 		}
-		erp := r.URL.Path == "/api/erp" || strings.HasPrefix(r.URL.Path, "/api/erp/")
-		if erp && r.URL.Query().Get("crash") == "1" {
+		if r.URL.Query().Get("crash") == "1" {
 			os.Exit(23)
 		}
-		delay := o.normalDelay
-		ignoreCancel := false
-		if erp {
-			delay = o.erpDelay
-			if f.ERPDelay != "" {
-				delay, err = parseDelay(f.ERPDelay)
-			}
-			if raw := r.URL.Query().Get("delay"); raw != "" {
-				delay, err = parseDelay(raw)
-			}
-			if err != nil {
-				http.Error(w, err.Error(), 400)
-				return
-			}
-			ignoreCancel = f.IgnoreCancellation || r.URL.Query().Get("ignore_cancel") == "1"
+		delay := o.delay
+		if f.Delay != "" {
+			delay, err = parseDelay(f.Delay)
 		}
+		if raw := r.URL.Query().Get("delay"); raw != "" {
+			delay, err = parseDelay(raw)
+		}
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		ignoreCancel := f.IgnoreCancellation || r.URL.Query().Get("ignore_cancel") == "1"
 		select {
 		case capacity <- struct{}{}:
 			defer func() { <-capacity }()
@@ -132,8 +124,8 @@ func newHandler(o options) http.Handler {
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if erp && f.ERPStatus != 0 {
-			w.WriteHeader(f.ERPStatus)
+		if f.Status != 0 {
+			w.WriteHeader(f.Status)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"pool": os.Getenv("APP_POOL"), "pid": os.Getpid(), "path": r.URL.Path})
 	})
