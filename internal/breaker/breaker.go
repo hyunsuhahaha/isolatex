@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
 )
 
 type Result int
@@ -27,6 +27,7 @@ type Breaker struct {
 	mu          sync.Mutex
 	cfg         *config.CircuitBreaker
 	now         func() time.Time
+	elapsed     func() time.Duration
 	state       string
 	generation  uint64
 	openUntil   time.Time
@@ -45,7 +46,10 @@ type Snapshot struct {
 	Transitions   uint64    `json:"transitions"`
 }
 
-func New(c *config.CircuitBreaker) *Breaker { return &Breaker{cfg: c, now: time.Now, state: "closed"} }
+func New(c *config.CircuitBreaker) *Breaker {
+	started := time.Now()
+	return &Breaker{cfg: c, now: time.Now, elapsed: func() time.Duration { return time.Since(started) }, state: "closed"}
+}
 
 // Allow returns a completion for this admission generation. The caller must
 // finish even when local admission fails; an abandoned Half-open probe must not
@@ -95,7 +99,9 @@ func (b *Breaker) complete(generation uint64, result Result) {
 		return
 	}
 	now := b.now()
-	epoch := now.UnixNano() / int64(b.cfg.Window/100)
+	// Wall-clock corrections must not erase or resurrect recent failures.
+	// elapsed uses time.Since's monotonic component for bucket placement.
+	epoch := int64(b.elapsed() / (b.cfg.Window / 100))
 	slot := &b.buckets[epoch%100]
 	if slot.epoch != epoch {
 		*slot = bucket{epoch: epoch}
@@ -104,14 +110,13 @@ func (b *Breaker) complete(generation uint64, result Result) {
 	if result == Failure {
 		slot.failed++
 	}
-	total, failed := b.counts(now)
+	total, failed := b.counts(epoch)
 	if total >= uint64(b.cfg.MinRequests) && float64(failed)/float64(total) >= b.cfg.FailureRatio {
 		b.open(now)
 	}
 }
 
-func (b *Breaker) counts(now time.Time) (total, failed uint64) {
-	epoch := now.UnixNano() / int64(b.cfg.Window/100)
+func (b *Breaker) counts(epoch int64) (total, failed uint64) {
 	for _, slot := range b.buckets {
 		if slot.epoch > epoch-100 && slot.epoch <= epoch {
 			total += slot.total
@@ -143,7 +148,7 @@ func (b *Breaker) Snapshot() Snapshot {
 	defer b.mu.Unlock()
 	s := Snapshot{Enabled: b.cfg != nil, State: b.state, ProbeInFlight: b.probeBusy, OpenUntil: b.openUntil, Transitions: b.transitions}
 	if b.cfg != nil {
-		s.Requests, s.Failures = b.counts(b.now())
+		s.Requests, s.Failures = b.counts(int64(b.elapsed() / (b.cfg.Window / 100)))
 	}
 	return s
 }

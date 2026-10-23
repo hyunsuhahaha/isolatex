@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"isolatex/internal/config"
-	"isolatex/internal/gateway"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/gateway"
 )
 
 // Launch this test binary as a real managed HTTP worker, without another build.
@@ -62,23 +62,23 @@ func TestManagedHealthFailureAndRecoveryKeepsPID(t *testing.T) {
 	if err := os.WriteFile(filename, []byte("healthy"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	g := c.Bulkheads["external"]
+	g := c.Bulkheads["isolated"]
 	g.Process.Env["HEALTH_FILE"] = filename
 	g.Readiness.FailureThreshold = 2
 	g.Readiness.SuccessThreshold = 2
-	c.Bulkheads["external"] = g
+	c.Bulkheads["isolated"] = g
 	s := New(c, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err := s.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer s.Stop()
-	waitFor(t, func() bool { return s.Pools["normal"].Ready() == 1 && s.Pools["external"].Ready() == 1 })
-	original := s.Pools["external"].Snapshot()[0].PID
+	waitFor(t, func() bool { return s.Pools["normal"].Ready() == 1 && s.Pools["isolated"].Ready() == 1 })
+	original := s.Pools["isolated"].Snapshot()[0].PID
 	if err := os.WriteFile(filename, []byte("unhealthy"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, func() bool { return s.Pools["external"].Snapshot()[0].State == "unhealthy" })
-	w := s.Pools["external"].Snapshot()[0]
+	waitFor(t, func() bool { return s.Pools["isolated"].Snapshot()[0].State == "unhealthy" })
+	w := s.Pools["isolated"].Snapshot()[0]
 	if w.Ready || w.PID != original || w.Restarts != 0 || w.HealthFailures < 2 {
 		t.Fatalf("health failure restarted worker: %+v", w)
 	}
@@ -88,8 +88,8 @@ func TestManagedHealthFailureAndRecoveryKeepsPID(t *testing.T) {
 	if err := os.WriteFile(filename, []byte("healthy"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, func() bool { return s.Pools["external"].Ready() == 1 })
-	w = s.Pools["external"].Snapshot()[0]
+	waitFor(t, func() bool { return s.Pools["isolated"].Ready() == 1 })
+	w = s.Pools["isolated"].Snapshot()[0]
 	if w.PID != original || w.Restarts != 0 || w.ConsecutiveSuccesses < 2 {
 		t.Fatalf("invalid recovery: %+v", w)
 	}
@@ -105,16 +105,16 @@ func TestStaticUpstreamHealthMonitoring(t *testing.T) {
 	}))
 	defer up.Close()
 	g := config.Group{Upstreams: []string{up.URL}, Readiness: config.Readiness{Path: "/readyz", Interval: 10 * time.Millisecond, Timeout: 50 * time.Millisecond, FailureThreshold: 2, SuccessThreshold: 2}}
-	s := New(config.Config{Bulkheads: map[string]config.Group{"external": g}}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(config.Config{Bulkheads: map[string]config.Group{"isolated": g}}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err := s.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer s.Stop()
-	waitFor(t, func() bool { return s.Pools["external"].Ready() == 1 })
+	waitFor(t, func() bool { return s.Pools["isolated"].Ready() == 1 })
 	healthy.Store(false)
-	waitFor(t, func() bool { return s.Pools["external"].Ready() == 0 })
+	waitFor(t, func() bool { return s.Pools["isolated"].Ready() == 0 })
 	healthy.Store(true)
-	waitFor(t, func() bool { return s.Pools["external"].Ready() == 1 })
+	waitFor(t, func() bool { return s.Pools["isolated"].Ready() == 1 })
 }
 
 func freePort(t *testing.T) int {
@@ -141,7 +141,7 @@ func fixture(t *testing.T) config.Config {
 	t.Helper()
 	c := config.Config{MaxAdmitted: 16, MaxBodyBytes: 1024, Bulkheads: map[string]config.Group{}}
 	used := map[int]bool{}
-	for _, name := range []string{"normal", "external"} {
+	for _, name := range []string{"normal", "isolated"} {
 		port := freePort(t)
 		for used[port] {
 			port = freePort(t)
@@ -149,8 +149,8 @@ func fixture(t *testing.T) config.Config {
 		used[port] = true
 		g := config.Group{Process: &config.Process{Command: []string{os.Args[0], "-test.run=^TestWorkerHelper$"}, Workers: 1, PortStart: port, Env: map[string]string{"ISOLATEX_TEST_WORKER": "1"}}, MaxConcurrent: 2, QueueSize: 2, QueueTimeout: time.Second, RequestTimeout: time.Second, Readiness: config.Readiness{Path: "/readyz", Interval: 10 * time.Millisecond, Timeout: 100 * time.Millisecond, StartupTimeout: time.Second}}
 		g.Match.PathPrefix = "/api"
-		if name == "external" {
-			g.Match.PathPrefix = "/api/erp"
+		if name == "isolated" {
+			g.Match.PathPrefix = "/api/fault"
 		}
 		c.Bulkheads[name] = g
 	}
@@ -165,14 +165,14 @@ func TestManagedCrashIsolationRestartAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(s.Stop)
-	waitFor(t, func() bool { return s.Pools["normal"].Ready() == 1 && s.Pools["external"].Ready() == 1 })
+	waitFor(t, func() bool { return s.Pools["normal"].Ready() == 1 && s.Pools["isolated"].Ready() == 1 })
 	normalPID := s.Pools["normal"].Snapshot()[0].PID
-	externalPID := s.Pools["external"].Snapshot()[0].PID
+	isolatedPID := s.Pools["isolated"].Snapshot()[0].PID
 	g := gateway.New(c, s.Pools, logger)
 	defer g.Close()
 	server := httptest.NewServer(g)
 	defer server.Close()
-	resp, err := server.Client().Get(server.URL + "/api/erp?crash=1")
+	resp, err := server.Client().Get(server.URL + "/api/fault?crash=1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,8 +191,8 @@ func TestManagedCrashIsolationRestartAndStop(t *testing.T) {
 		t.Fatalf("normal affected: %d %+v", resp.StatusCode, body)
 	}
 	waitFor(t, func() bool {
-		w := s.Pools["external"].Snapshot()[0]
-		return w.Ready && w.PID != externalPID && w.Restarts == 1
+		w := s.Pools["isolated"].Snapshot()[0]
+		return w.Ready && w.PID != isolatedPID && w.Restarts == 1
 	})
 	g.Drain()
 	s.Stop()
@@ -255,7 +255,7 @@ func TestStopDuringFailedStartup(t *testing.T) {
 
 func TestWorkerEnvironment(t *testing.T) {
 	t.Setenv("PORT", "1234")
-	env := workerEnv(map[string]string{"APP_POOL": "external", "custom_key": "present"}, 9876)
+	env := workerEnv(map[string]string{"APP_POOL": "isolated", "custom_key": "present"}, 9876)
 	ports := 0
 	for _, entry := range env {
 		if strings.HasPrefix(entry, "PORT=") {
@@ -272,7 +272,7 @@ func TestWorkerEnvironment(t *testing.T) {
 
 func TestStartupDeadlineBoundsSlowReadiness(t *testing.T) {
 	c := fixture(t)
-	delete(c.Bulkheads, "external")
+	delete(c.Bulkheads, "isolated")
 	b := c.Bulkheads["normal"]
 	b.Process.Env["NOT_READY"] = "1"
 	b.Readiness.StartupTimeout = 250 * time.Millisecond
@@ -293,18 +293,38 @@ func TestStartupDeadlineBoundsSlowReadiness(t *testing.T) {
 	}
 }
 
-func TestCrashLoopExhaustsRestartBudget(t *testing.T) {
+func TestCrashLoopExhaustsOnlyItsOwnRestartBudget(t *testing.T) {
 	c := fixture(t)
-	delete(c.Bulkheads, "external")
-	c.Bulkheads["normal"].Process.Env["FAIL_START"] = "1"
+	c.Bulkheads["isolated"].Process.Env["FAIL_START"] = "1"
 	s := New(c, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err := s.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer s.Stop()
+	waitFor(t, func() bool { return s.Pools["normal"].Ready() == 1 })
+	healthyPID := s.Pools["normal"].Snapshot()[0].PID
+	g := gateway.New(c, s.Pools, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	defer g.Close()
+	server := httptest.NewServer(g)
+	defer server.Close()
+	client := &http.Client{Timeout: time.Second}
+	defer client.CloseIdleConnections()
 	deadline := time.Now().Add(40 * time.Second)
 	for {
-		w := s.Pools["normal"].Snapshot()[0]
+		w := s.Pools["isolated"].Snapshot()[0]
+		healthy := s.Pools["normal"].Snapshot()[0]
+		if !healthy.Ready || healthy.PID != healthyPID || healthy.Restarts != 0 {
+			t.Fatalf("crash loop affected another group: %+v", healthy)
+		}
+		resp, err := client.Get(server.URL + "/api/orders")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("healthy group during crash loop: %d", resp.StatusCode)
+		}
 		if w.State == "failed" {
 			if w.Restarts != 5 || w.Ready || w.PID != 0 {
 				t.Fatalf("invalid exhausted state: %+v", w)
@@ -314,6 +334,6 @@ func TestCrashLoopExhaustsRestartBudget(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatalf("restart loop did not stop: %+v", w)
 		}
-		time.Sleep(25 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 }

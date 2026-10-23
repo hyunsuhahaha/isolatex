@@ -20,6 +20,14 @@ func newRegistry() *prometheus.Registry {
 	return r
 }
 
+// RegisterLogDrops installs runtime-wide log delivery accounting before Serve.
+func (g *Gateway) RegisterLogDrops(dropped func() uint64) {
+	g.registry.MustRegister(prometheus.NewCounterFunc(prometheus.CounterOpts{
+		Name: "isolatex_dropped_log_records_total",
+		Help: "Runtime log records dropped due to capacity, size, delivery failure, or shutdown.",
+	}, func() float64 { return float64(dropped()) }))
+}
+
 func (b *group) registerMetrics(r *prometheus.Registry) {
 	labels := prometheus.Labels{"group": b.name}
 	b.metrics = metrics{
@@ -78,7 +86,7 @@ func (m *metrics) record(outcome string, d time.Duration) {
 	m.requests.WithLabelValues(outcome).Inc()
 	m.duration.WithLabelValues(outcome).Observe(d.Seconds())
 	switch outcome {
-	case "global_full", "queue_full", "queue_timeout", "no_ready_worker", "circuit_open", "draining":
+	case "queue_full", "queue_timeout", "no_ready_worker", "circuit_open", "draining":
 		m.rejected.WithLabelValues(outcome).Inc()
 	}
 }

@@ -1,19 +1,20 @@
 version: 1
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:9090"
-max_admitted_requests: 32
+# Reserved capacity: alpha (8 + 8) + beta (2 + 4).
+max_admitted_requests: 22
 max_body_bytes: 1048576
 shutdown_grace: 5s
 bulkheads:
-  normal:
+  alpha:
     match:
-      path_prefix: /api
+      path_prefix: /a
     process:
       command: ["./bin/demo-app"]
       workers: 2
       port_start: 9100
       env:
-        APP_POOL: normal
+        APP_POOL: alpha
     max_concurrent: 8
     queue_size: 8
     queue_timeout: 200ms
@@ -23,15 +24,15 @@ bulkheads:
       interval: 100ms
       timeout: 300ms
       startup_timeout: 10s
-  external:
+  beta:
     match:
-      path_prefix: /api/erp
+      path_prefix: /b
     process:
       command: ["./bin/demo-app"]
       workers: 2
       port_start: 9200
       env:
-        APP_POOL: external
+        APP_POOL: beta
     max_concurrent: 2
     queue_size: 4
     queue_timeout: 200ms

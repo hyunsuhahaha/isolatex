@@ -13,11 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/hyunsuhahaha/isolatex/internal/breaker"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/pool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"isolatex/internal/breaker"
-	"isolatex/internal/config"
-	"isolatex/internal/pool"
 )
 
 type group struct {
@@ -33,14 +33,15 @@ type group struct {
 type Gateway struct {
 	cfg      config.Config
 	groups   []*group
-	admitted chan struct{}
 	draining atomic.Bool
 	log      *slog.Logger
 	registry *prometheus.Registry
 }
 
+// New requires a validated config. The group gates enforce the global bound
+// through reserved budgets, without a shared semaphore on the request path.
 func New(c config.Config, pools map[string]*pool.Pool, logger *slog.Logger) *Gateway {
-	g := &Gateway{cfg: c, admitted: make(chan struct{}, c.MaxAdmitted), log: logger, registry: newRegistry()}
+	g := &Gateway{cfg: c, log: logger, registry: newRegistry()}
 	for name, cfg := range c.Bulkheads {
 		t := &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext, MaxIdleConns: cfg.MaxConcurrent, MaxIdleConnsPerHost: cfg.MaxConcurrent, MaxConnsPerHost: cfg.MaxConcurrent, IdleConnTimeout: 30 * time.Second, ResponseHeaderTimeout: cfg.RequestTimeout, MaxResponseHeaderBytes: 64 << 10, DisableCompression: true}
 		b := &group{name: name, cfg: cfg, pool: pools[name], gate: newGate(cfg.MaxConcurrent, cfg.QueueSize), transport: t, breaker: breaker.New(cfg.CircuitBreaker)}
@@ -110,14 +111,6 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if b.breaker.Blocked() {
 		outcome = "circuit_open"
-		fail(w, 503, outcome)
-		return
-	}
-	select {
-	case g.admitted <- struct{}{}:
-		defer func() { <-g.admitted }()
-	default:
-		outcome = "global_full"
 		fail(w, 503, outcome)
 		return
 	}
@@ -291,6 +284,23 @@ func (g *Gateway) Admin() http.Handler {
 		}
 		w.WriteHeader(200)
 		_, _ = w.Write([]byte("ready\n"))
+	})
+	mux.HandleFunc("GET /readyz/{group}", func(w http.ResponseWriter, r *http.Request) {
+		for _, b := range g.groups {
+			if b.name != r.PathValue("group") {
+				continue
+			}
+			if g.draining.Load() {
+				fail(w, 503, "draining")
+			} else if b.pool.Ready() == 0 {
+				fail(w, 503, "no_ready_worker")
+			} else {
+				w.WriteHeader(200)
+				_, _ = w.Write([]byte("ready\n"))
+			}
+			return
+		}
+		fail(w, 404, "unknown_group")
 	})
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) {
 		groups := map[string]any{}

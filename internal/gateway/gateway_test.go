@@ -11,27 +11,30 @@ import (
 	"testing"
 	"time"
 
-	"isolatex/internal/config"
-	"isolatex/internal/pool"
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/pool"
 )
 
 func testGateway(t *testing.T, handler http.Handler, options ...func(*config.Config)) (*Gateway, *httptest.Server) {
 	t.Helper()
 	up := httptest.NewServer(handler)
 	t.Cleanup(up.Close)
-	c := config.Config{MaxAdmitted: 20, MaxBodyBytes: 32, Bulkheads: map[string]config.Group{}}
-	for _, name := range []string{"normal", "external"} {
+	c := config.Config{Version: 1, Listen: "127.0.0.1:8080", AdminListen: "127.0.0.1:9090", MaxAdmitted: 4, MaxBodyBytes: 32, ShutdownGrace: time.Second, Bulkheads: map[string]config.Group{}}
+	for _, name := range []string{"normal", "isolated"} {
 		b := config.Group{MaxConcurrent: 1, QueueSize: 1, QueueTimeout: time.Second, RequestTimeout: 2 * time.Second, Upstreams: []string{up.URL}}
 		b.Match.PathPrefix = "/api"
-		if name == "external" {
-			b.Match.PathPrefix = "/api/erp"
+		if name == "isolated" {
+			b.Match.PathPrefix = "/api/fault"
 		}
 		c.Bulkheads[name] = b
 	}
 	for _, option := range options {
 		option(&c)
 	}
-	g := New(c, map[string]*pool.Pool{"normal": pool.New([]string{up.URL}, true), "external": pool.New([]string{up.URL}, true)}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	g := New(c, map[string]*pool.Pool{"normal": pool.New([]string{up.URL}, true), "isolated": pool.New([]string{up.URL}, true)}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	t.Cleanup(g.Close)
 	s := httptest.NewServer(g)
 	t.Cleanup(s.Close)
@@ -60,12 +63,12 @@ func code(t *testing.T, client *http.Client, url string) int {
 	return resp.StatusCode
 }
 
-func TestSaturatedERPDoesNotBlockNormal(t *testing.T) {
+func TestSaturatedFaultGroupDoesNotBlockNormal(t *testing.T) {
 	entered := make(chan struct{}, 4)
 	release := make(chan struct{})
 	defer close(release)
 	g, s := testGateway(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/erp" {
+		if r.URL.Path == "/api/fault" {
 			entered <- struct{}{}
 			select {
 			case <-release:
@@ -76,7 +79,7 @@ func TestSaturatedERPDoesNotBlockNormal(t *testing.T) {
 	}))
 	results := make(chan int, 2)
 	get := func() {
-		resp, err := s.Client().Get(s.URL + "/api/erp")
+		resp, err := s.Client().Get(s.URL + "/api/fault")
 		if err != nil {
 			results <- 0
 			return
@@ -87,9 +90,9 @@ func TestSaturatedERPDoesNotBlockNormal(t *testing.T) {
 	go get()
 	<-entered
 	go get()
-	external := g.groups[0]
-	eventually(t, func() bool { a, q := external.gate.snapshot(); return a == 1 && q == 1 })
-	if got := code(t, s.Client(), s.URL+"/api/erp"); got != 503 {
+	isolated := g.groups[0]
+	eventually(t, func() bool { a, q := isolated.gate.snapshot(); return a == 1 && q == 1 })
+	if got := code(t, s.Client(), s.URL+"/api/fault"); got != 503 {
 		t.Fatalf("overflow=%d", got)
 	}
 	if got := code(t, s.Client(), s.URL+"/api/orders"); got != 200 {
@@ -103,7 +106,7 @@ func TestSaturatedERPDoesNotBlockNormal(t *testing.T) {
 			t.Fatalf("admitted=%d", got)
 		}
 	}
-	eventually(t, func() bool { a, q := external.gate.snapshot(); return a == 0 && q == 0 })
+	eventually(t, func() bool { a, q := isolated.gate.snapshot(); return a == 0 && q == 0 })
 }
 
 func TestRoutingInputAndHeaders(t *testing.T) {
@@ -114,7 +117,7 @@ func TestRoutingInputAndHeaders(t *testing.T) {
 		_, _ = io.Copy(io.Discard, r.Body)
 		w.WriteHeader(200)
 	}))
-	for path, want := range map[string]int{"/api/erp-old": 200, "/unmatched": 404, "/api/../erp": 400, "/api//erp": 400, "/api/%65rp": 400, "/api/a%20b": 400} {
+	for path, want := range map[string]int{"/api/fault-old": 200, "/unmatched": 404, "/api/../fault": 400, "/api//fault": 400, "/api/%65rp": 400, "/api/a%20b": 400} {
 		if got := code(t, s.Client(), s.URL+path); got != want {
 			t.Errorf("%s = %d, want %d", path, got, want)
 		}
@@ -123,20 +126,20 @@ func TestRoutingInputAndHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var external float64
+	var isolated float64
 	for _, family := range stats {
 		if family.GetName() == "isolatex_requests_total" {
 			for _, metric := range family.Metric {
 				for _, label := range metric.Label {
-					if label.GetName() == "group" && label.GetValue() == "external" {
-						external += metric.GetCounter().GetValue()
+					if label.GetName() == "group" && label.GetValue() == "isolated" {
+						isolated += metric.GetCounter().GetValue()
 					}
 				}
 			}
 		}
 	}
-	if external != 0 {
-		t.Fatal("erp-old routed to external")
+	if isolated != 0 {
+		t.Fatal("fault-old routed to isolated")
 	}
 	req, _ := http.NewRequest("POST", s.URL+"/api", strings.NewReader(strings.Repeat("x", 33)))
 	req.Header.Set("X-Forwarded-For", "spoof")
@@ -162,15 +165,12 @@ func TestRoutingInputAndHeaders(t *testing.T) {
 func TestTimeoutReleasesCapacity(t *testing.T) {
 	g, s := testGateway(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
 	g.groups[0].cfg.RequestTimeout = 40 * time.Millisecond
-	if got := code(t, s.Client(), s.URL+"/api/erp"); got != 504 {
+	if got := code(t, s.Client(), s.URL+"/api/fault"); got != 504 {
 		t.Fatalf("timeout=%d", got)
 	}
 	a, q := g.groups[0].gate.snapshot()
 	if a != 0 || q != 0 {
 		t.Fatalf("leak: %d %d", a, q)
-	}
-	if len(g.admitted) != 0 {
-		t.Fatal("global admission leak")
 	}
 }
 
@@ -259,7 +259,7 @@ func TestChunkedBodyLimitAndClientCancelReleaseSlots(t *testing.T) {
 	// An unknown Content-Length must still be bounded while streaming.
 	reader, writer := io.Pipe()
 	go func() { _, _ = io.WriteString(writer, strings.Repeat("x", 128)); _ = writer.Close() }()
-	req, _ := http.NewRequest("POST", s.URL+"/api/erp", reader)
+	req, _ := http.NewRequest("POST", s.URL+"/api/fault", reader)
 	resp, err := s.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -269,7 +269,7 @@ func TestChunkedBodyLimitAndClientCancelReleaseSlots(t *testing.T) {
 		t.Fatalf("chunked overflow=%d", resp.StatusCode)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	req, _ = http.NewRequestWithContext(ctx, "GET", s.URL+"/api/erp?wait", nil)
+	req, _ = http.NewRequestWithContext(ctx, "GET", s.URL+"/api/fault?wait", nil)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -281,35 +281,37 @@ func TestChunkedBodyLimitAndClientCancelReleaseSlots(t *testing.T) {
 	eventually(t, func() bool { a, _ := g.groups[0].gate.snapshot(); return a == 1 })
 	cancel()
 	<-done
-	eventually(t, func() bool { a, q := g.groups[0].gate.snapshot(); return a == 0 && q == 0 && len(g.admitted) == 0 })
-	if got := code(t, s.Client(), s.URL+"/api/erp"); got != 200 {
+	eventually(t, func() bool { a, q := g.groups[0].gate.snapshot(); return a == 0 && q == 0 })
+	if got := code(t, s.Client(), s.URL+"/api/fault"); got != 200 {
 		t.Fatal(got)
 	}
 }
 
-func TestGlobalLimitNoReadyWorkerAndAdminDrain(t *testing.T) {
+func TestNoReadyWorkerAndAdminDrain(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
 	g, s := testGateway(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/fault" {
+			return
+		}
 		close(entered)
 		select {
 		case <-release:
 		case <-r.Context().Done():
 		}
 	}))
-	g.admitted = make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		resp, err := s.Client().Get(s.URL + "/api/erp")
+		resp, err := s.Client().Get(s.URL + "/api/fault")
 		if err == nil {
 			resp.Body.Close()
 		}
 	}()
 	<-entered
-	if got := code(t, s.Client(), s.URL+"/api/orders"); got != 503 {
-		t.Fatalf("global limit=%d", got)
+	if got := code(t, s.Client(), s.URL+"/api/orders"); got != 200 {
+		t.Fatalf("normal affected by active FaultGroup request: %d", got)
 	}
 	release <- struct{}{}
 	<-done
@@ -319,7 +321,7 @@ func TestGlobalLimitNoReadyWorkerAndAdminDrain(t *testing.T) {
 		t.Fatal(got)
 	}
 	g.groups[0].pool.Set(0, false, 0, "failed")
-	if got := code(t, s.Client(), s.URL+"/api/erp"); got != 503 {
+	if got := code(t, s.Client(), s.URL+"/api/fault"); got != 503 {
 		t.Fatal(got)
 	}
 	if got := code(t, admin.Client(), admin.URL+"/readyz"); got != 503 {

@@ -64,3 +64,40 @@ func TestHealthHysteresis(t *testing.T) {
 		t.Fatal("did not recover")
 	}
 }
+
+func TestOldProcessCompletionCannotChangeReplacementLoad(t *testing.T) {
+	p := New([]string{"http://127.0.0.1:1"}, false)
+	p.Set(0, true, 10, "ready")
+	_, oldRelease := p.Pick()
+	p.Set(0, false, 0, "backoff")
+	p.Set(0, false, 0, "starting")
+	p.Set(0, true, 11, "ready")
+	if got := p.Snapshot()[0].Active; got != 0 {
+		t.Fatalf("replacement inherited old process load: %d", got)
+	}
+	_, newRelease := p.Pick()
+	oldRelease()
+	oldRelease()
+	if got := p.Snapshot()[0].Active; got != 1 {
+		t.Fatalf("old completion changed replacement load: %d", got)
+	}
+	newRelease()
+	if got := p.Snapshot()[0].Active; got != 0 {
+		t.Fatalf("replacement load leaked: %d", got)
+	}
+}
+
+func TestHealthRecoveryKeepsInFlightLoad(t *testing.T) {
+	p := New([]string{"http://127.0.0.1:1"}, false)
+	p.Set(0, true, 10, "ready")
+	_, release := p.Pick()
+	p.Health(0, false, 1, 1)
+	p.Health(0, true, 1, 1)
+	if got := p.Snapshot()[0].Active; got != 1 {
+		t.Fatalf("same process recovery lost in-flight load: %d", got)
+	}
+	release()
+	if got := p.Snapshot()[0].Active; got != 0 {
+		t.Fatalf("same process completion leaked: %d", got)
+	}
+}

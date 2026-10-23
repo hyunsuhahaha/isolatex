@@ -32,3 +32,6 @@ if [ "$ready" != true ]; then
   exit 1
 fi
 go run ./bench -url "$gateway_url" -admin "$admin_url"
+go run ./bench -url "$gateway_url" -admin "$admin_url" \
+  -healthy-group beta -healthy-path /b/work \
+  -fault-group alpha -fault-path /a/work

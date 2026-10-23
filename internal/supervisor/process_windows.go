@@ -8,7 +8,7 @@ import (
 )
 
 // Windows is a development fallback: only direct children are terminated.
-// Full process-tree lifetime control requires Job Objects (outside v0.2).
+// Full process-tree lifetime control requires Job Objects, which are not implemented.
 func configureProcess(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP}
 }

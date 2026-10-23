@@ -4,15 +4,25 @@ permissions:
   contents: read
 jobs:
   test:
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             go: stable
           - os: windows-latest
             go: stable
+          - os: ubuntu-24.04-arm
+            go: stable
+          - os: macos-latest
+            go: stable
+          - os: macos-15-intel
+            go: stable
           - os: ubuntu-latest
-            go: '1.23.x'
+            go: '1.25.x'
+          - os: windows-latest
+            go: '1.25.x'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -20,9 +30,37 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
           cache: true
+      - name: Check formatting
+        shell: bash
+        run: |
+          unformatted="$(git ls-files -z '*.go' | xargs -0 gofmt -l)"
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+      - run: go mod verify
+      - name: Check known module and reachable symbol vulnerabilities
+        if: matrix.go == 'stable'
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -C cmd/isolatex -scan module
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - run: go test ./... -count=1 -timeout=90s
       - run: go vet ./...
       - if: runner.os == 'Linux'
         run: go test -race ./... -count=1 -timeout=90s
       - if: runner.os == 'Linux' && matrix.go == 'stable'
         run: bash scripts/smoke.sh
+      - name: Exercise matched-resource experiment topologies
+        if: runner.os == 'Linux' && matrix.go == 'stable'
+        run: |
+          go run ./bench/compare -warmup 0 -baseline 1s -fault 2s -recovery 1s -repeats 1 -healthy-rate 10 -fault-rate 10 -scenario delay -out bin/compare-delay.json
+          go run ./bench/compare -warmup 0 -baseline 1s -fault 2s -recovery 1s -repeats 1 -healthy-rate 10 -fault-rate 10 -scenario crash -out bin/compare-crash.json
+      - name: Verify distribution script and native archive
+        if: runner.os == 'Linux' && matrix.go == 'stable'
+        run: |
+          for script in scripts/*.sh; do bash -n "$script"; done
+          TARGETS="$(go env GOOS)/$(go env GOARCH)" bash scripts/build-dist.sh ci
+          (cd dist && sha256sum -c SHA256SUMS)
+          mkdir -p .tools/dist-check
+          tar -xzf "dist/isolatex_ci_$(go env GOOS)_$(go env GOARCH).tar.gz" -C .tools/dist-check
+          (cd .tools/dist-check && bin/isolatex -version && bin/isolatex -config isolatex.yaml -check)
