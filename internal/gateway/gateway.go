@@ -143,7 +143,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer b.gate.release()
-	if err := ctx.Err(); err != nil {
+	if err := contextErrorAt(ctx, time.Now()); err != nil {
 		outcome = "canceled"
 		if errors.Is(err, context.DeadlineExceeded) {
 			outcome = "timeout"
