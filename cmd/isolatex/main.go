@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -44,15 +45,35 @@ func main() {
 func run(output io.Writer) error {
 	filename := flag.String("config", "isolatex.yaml", "YAML configuration path (commands resolve from current directory)")
 	check := flag.Bool("check", false, "validate configuration without starting servers or workers")
-	debug := flag.Bool("debug", false, "include request outcome logs")
+	debugLogs := flag.Bool("debug", false, "include request outcome logs")
 	showVersion := flag.Bool("version", false, "print build version and exit without loading configuration")
 	flag.Parse()
 	if *showVersion {
-		fmt.Printf("isolatex %s\ncommit: %s\nbuilt: %s\n", version, commit, buildDate)
+		releaseVersion, revision := version, commit
+		if info, ok := debug.ReadBuildInfo(); ok {
+			if releaseVersion == "dev" && info.Main.Version != "" && info.Main.Version != "(devel)" {
+				releaseVersion = info.Main.Version
+			}
+			if revision == "unknown" {
+				dirty := false
+				for _, setting := range info.Settings {
+					switch setting.Key {
+					case "vcs.revision":
+						revision = setting.Value
+					case "vcs.modified":
+						dirty = setting.Value == "true"
+					}
+				}
+				if dirty && revision != "unknown" {
+					revision += "-dirty"
+				}
+			}
+		}
+		fmt.Printf("isolatex %s\ncommit: %s\nbuilt: %s\n", releaseVersion, revision, buildDate)
 		return nil
 	}
 	level := slog.LevelInfo
-	if *debug {
+	if *debugLogs {
 		level = slog.LevelDebug
 	}
 	logger := slog.New(slog.NewJSONHandler(output, &slog.HandlerOptions{Level: level}))
