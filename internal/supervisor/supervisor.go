@@ -28,6 +28,8 @@ type Supervisor struct {
 	cancel  context.CancelFunc
 	logs    chan logLine
 	dropped atomic.Uint64
+	now     func() time.Time
+	wait    func(context.Context, time.Duration) bool
 }
 
 type logLine struct {
@@ -37,7 +39,10 @@ type logLine struct {
 }
 
 func New(c config.Config, logger *slog.Logger) *Supervisor {
-	s := &Supervisor{cfg: c, Pools: map[string]*pool.Pool{}, log: logger, logs: make(chan logLine, 256)}
+	s := &Supervisor{
+		cfg: c, Pools: map[string]*pool.Pool{}, log: logger,
+		logs: make(chan logLine, 256), now: time.Now, wait: pause,
+	}
 	for name, g := range c.Bulkheads {
 		origins := g.Upstreams
 		if g.Process != nil {
@@ -136,7 +141,7 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 			return
 		}
 		s.log.Warn("worker_exited", "group", name, "worker", index, "error", err)
-		now := time.Now()
+		now := s.now()
 		recent := history[:0]
 		for _, t := range history {
 			if now.Sub(t) < time.Minute {
@@ -144,16 +149,21 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 			}
 		}
 		history = recent
+		// Once every prior restart is outside the budget window, this is a
+		// fresh incident rather than another step in the old crash loop.
+		if len(history) == 0 {
+			delay = 500 * time.Millisecond
+		}
 		if len(history) >= 5 {
 			p.Set(index, false, 0, "failed")
 			s.log.Error("restart_budget_exhausted", "group", name, "worker", index)
 			return
 		}
-		if !pause(ctx, min(delay+time.Duration(rand.Int64N(int64(delay/2))), 30*time.Second)) {
+		if !s.wait(ctx, min(delay+time.Duration(rand.Int64N(int64(delay/2))), 30*time.Second)) {
 			p.Set(index, false, 0, "stopped")
 			return
 		}
-		history = append(history, time.Now())
+		history = append(history, s.now())
 		p.Restart(index)
 		delay = min(delay*2, 30*time.Second)
 	}
