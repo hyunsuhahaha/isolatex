@@ -122,3 +122,9 @@ Go 1.27.3 Windows amd64 및 WSL2 Linux amd64에서 검증했다. 이전 커밋 `
 비교 도구의 통계·한도 검사는 Windows 테스트·vet, Linux race·vet를 통과했다. Windows 실제 크래시 비교의 짧은 기능 검사에서 A/B/C의 자원 합계는 각각 앱 4·실행 4·대기 8이었고, 보호 영역 PID는 공유 A/B에서 변경되고 분리 C에서 유지됐다.
 
 Linux에서는 준비 1s·정상 2s·장애 3s·회복 2s, 두 역할 각각 40rps, seed 42로 A/B/C를 세 번씩 비교했다. 지연 시나리오가 끝난 뒤 크래시 시나리오를 실행했다. 모든 trial에서 생성 누락은 0이었고 자원 합계와 요청 수 집계가 일치했다. 각 시나리오의 C 장애 단계에서 보호 요청은 360/360 성공했다. 공유 A/B의 요청 실패와 PID 변경도 원자료에 남겼다. [짧은 실험 기록](../bench/results/README.md)에 반복별 수치·해석·한계를 공개한다. 이는 장기 성능 합격 판정이 아니다.
+
+비교 도구의 실제 지연 실험을 `go run -race ./bench/compare -warmup 0 -baseline 1s -fault 2s -recovery 1s -repeats 1 -healthy-rate 10 -fault-rate 10 -scenario delay -out .tools/compare-race.json`로 실행해 A/B/C 전체 경로의 race 검사도 통과했다. `0b7d253` 원격 CI는 Windows stable·Linux stable·Linux Go 1.23.x 모두 성공했으며 Linux stable에서 새 지연·크래시 비교 실행과 압축 해제본 검사도 통과했다.
+
+## 2026-10-24 — 그룹별 준비 상태
+
+새 실제 HTTP 테스트는 기존 구현에서 `/readyz/normal`이 404라 실패했다. `GET /readyz/{group}`를 추가한 뒤 한 그룹 실패·다른 그룹 유지·반대 그룹 회복·전체 drain·없는 그룹·생존 상태를 Windows gateway 테스트·vet와 Linux gateway race 검사로 검증했다. 전역 `/readyz`의 기존 전체 그룹 집계 동작은 유지한다. 그룹 준비 상태는 워커 존재와 drain 여부이며 포화·차단기·요청 성공 여부와는 별개의 계약이다.

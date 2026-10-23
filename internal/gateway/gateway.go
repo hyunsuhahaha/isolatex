@@ -285,6 +285,23 @@ func (g *Gateway) Admin() http.Handler {
 		w.WriteHeader(200)
 		_, _ = w.Write([]byte("ready\n"))
 	})
+	mux.HandleFunc("GET /readyz/{group}", func(w http.ResponseWriter, r *http.Request) {
+		for _, b := range g.groups {
+			if b.name != r.PathValue("group") {
+				continue
+			}
+			if g.draining.Load() {
+				fail(w, 503, "draining")
+			} else if b.pool.Ready() == 0 {
+				fail(w, 503, "no_ready_worker")
+			} else {
+				w.WriteHeader(200)
+				_, _ = w.Write([]byte("ready\n"))
+			}
+			return
+		}
+		fail(w, 404, "unknown_group")
+	})
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) {
 		groups := map[string]any{}
 		for _, b := range g.groups {
