@@ -166,3 +166,13 @@ context 오류와 실제 기한을 함께 확인하도록 수정했다. 큐 기�
 정상 유예 시나리오는 워커가 살아 있는 상태에서 장벽을 풀고 기존 PID의 완전한 200 응답을 확인한다. 유예 초과 시나리오는 장벽을 풀지 않고 250ms 유예가 지난 뒤 진행 연결 종료와 `drain_deadline` 로그를 확인한다. 두 경우 모두 정상 런타임 종료·`workers_stopped` 로그·두 워커 PID 소멸·게이트웨이와 관리 포트 및 워커 포트 두 개의 재바인딩을 검사한다.
 
 Linux에서 이 검사를 race 모드로 10회 반복해 두 시나리오가 모두 통과했다. 테스트 실행 파일과 워커 helper에는 race 계측이 적용되지만 별도로 빌드한 CLI는 일반 빌드다. 전체 테스트 명령을 통해 Unix CI에서도 자동 실행되며 Windows에서는 빌드 조건으로 제외한다. 이는 SIGTERM 검사이며 Windows 콘솔 Ctrl+C나 탈출한 자손 정리를 입증하지 않는다.
+
+`68dcc4b`의 push·PR 실행은 7개 구성, 합계 14개 check가 모두 통과했다. Linux amd64/arm64와 macOS arm64/Intel에서 새 Unix 종료 검사를 포함한 전체 테스트가 성공했으며 Windows에서는 기존 전체 테스트·vet·취약점 검사가 통과했다. 이후 기본 브랜치에 병합했다.
+
+## 2026-10-24 — 공개 모듈 설치 경로
+
+Windows Go 1.27.3에서 `go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@15c7638dd5af5225a6aee2f41d363e9604bd84b0`를 별도 GOBIN으로 실행했다. 공개 모듈 버전 `v0.0.0-20261023171426-15c7638dd5af`를 내려받았으며 설치된 실행 파일의 `-version`과 기본 YAML의 `-check`가 성공했다. 브랜치 `@master` 조회는 이보다 이전의 유효한 개발 커밋을 반환했으므로 README는 재현 가능한 설치 예제에 전체 커밋을 고정한다.
+
+Go 모듈 설치는 별도 배포 ldflags·VCS 메타데이터가 없어 `commit`·`built`를 `unknown`으로 출력할 수 있다. 이 경우 모듈 의사 버전에 소스 커밋 접미사가 포함된다. CLI만 설치되며 데모·설정·문서는 포함되지 않는다는 점도 명시했다. 정식 태그나 GitHub 릴리스는 게시하지 않았다.
+
+같은 커밋의 깨끗한 기본 체크아웃에서 `bash scripts/build-dist.sh dev-15c7638 .tools/release-audit-15c7638`로 Linux amd64/arm64·Windows amd64·macOS amd64/arm64의 다섯 묶음을 생성했다. 다섯 SHA-256 검사와 Linux amd64·Windows amd64 실행 파일의 버전·기본 설정 검사가 통과했으며 두 네이티브 실행 파일 모두 전체 커밋 `15c7638dd5af5225a6aee2f41d363e9604bd84b0`을 출력했다. 빌드 중 체크아웃이 변경됐을 가능성이 있는 앞선 `dev-930b401` 묶음은 이 감사의 근거에서 제외했다. ARM Linux·macOS 묶음의 로컬 실행을 주장하지 않는다.

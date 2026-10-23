@@ -21,7 +21,16 @@ Go 1.25 이상이 필요하다. 저장소 루트에서 실행한다. HTTP·프�
 
 Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프로젝트가 보안 수정을 지원하는 버전의 최신 패치로 빌드한다. Windows 의존성의 알려진 취약점 수정을 위해 최소 버전을 기존 1.23에서 올렸다. [보안 범위와 검사](SECURITY.md)
 
-Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 제공하지 않으며 소스 빌드와 배포 묶음 생성 절차를 검증 중이다.
+Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 2026-10-24에 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 스냅샷이다.
+
+```sh
+go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@15c7638dd5af5225a6aee2f41d363e9604bd84b0
+isolatex -version
+```
+
+설치 위치는 `GOBIN` 또는 기본 `$GOPATH/bin`이며 해당 경로를 `PATH`에 추가해야 한다. 이 명령은 CLI만 설치한다. 데모 실행 파일과 YAML 예제는 저장소를 복제해 아래 절차로 빌드하거나 배포 묶음을 사용한다.
+
+브랜치·`@latest` 조회가 방금 갱신한 저장소와 다를 수 있으므로 설치 후 `-version`의 모듈 버전과 커밋 접미사를 확인한다. [Go 모듈 미러의 캐시 안내](https://proxy.golang.org/)처럼 변경 사항은 즉시 조회에 반영되지 않을 수 있다. 모듈 설치에서 별도 VCS·배포 메타데이터가 없으면 `commit`과 `built`는 `unknown`이며 소스 식별자는 모듈 버전에 포함된다.
 
 ```sh
 go build -o bin/demo-app ./examples/demo-app
