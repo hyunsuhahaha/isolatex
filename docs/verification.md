@@ -146,3 +146,9 @@ govulncheck v1.9.0으로 Go 1.27.3 Windows·Linux 소스를 검사했다. 변경
 CI는 Linux amd64/arm64, Windows amd64, macOS arm64/Intel stable과 Linux/Windows Go 1.25.x 호환성 행으로 확장했다. stable 행과 수동 배포 workflow는 고정한 govulncheck로 포장 전 취약점 검사를 실행한다.
 
 `0cf0332`의 push·PR 실행은 7개 구성, 합계 14개 check가 모두 성공했다. macOS 로그에서 `go1.27.3 darwin/arm64`와 `go1.27.3 darwin/amd64`를, ARM Linux 로그에서 `go1.27.3 linux/arm64`를 확인했다. 각 stable 행의 모듈·호출 수준 취약점 검사는 모두 미검출이었다. Linux 두 아키텍처는 전체 race·양방향 CLI smoke·지연/크래시 비교 실행·네이티브 배포 압축 해제본 검사를 통과했다. macOS 두 아키텍처는 전체 테스트·vet·취약점 검사를 통과했으며 배포 압축 파일 자체의 실행 검사와 구분한다. [원격 CI 실행](https://github.com/hyunsuhahaha/isolatex/actions/runs/39988723571)
+
+## 2026-10-24 — 과거 장애 이후 재시작 대기 초기화
+
+실제 관리형 테스트 프로세스를 종료·복구시키고 재시작 이력의 시계를 2분 진행시키는 검사에서, 기존 구현은 만료된 과거 장애 때문에 다음 대기를 계속 늘렸다. 최근 60초 기록이 모두 사라지면 500ms 기본 지연부터 다시 시작하도록 수정했다. 짧은 간격의 연속 장애에는 지수 증가와 기존 5회 재시작 예산을 유지한다.
+
+새 테스트는 첫 장애의 500–750ms jitter 범위, 바로 다음 장애의 1–1.5s 범위, 이력 만료 후 500–750ms 복귀와 다른 그룹의 Ready·PID·재시작 수 유지를 검사한다. 실제 대기만 제어된 hook으로 관측하며 호스트 시각은 변경하지 않는다. Windows 새 테스트 10회 반복과 전체 supervisor 테스트·vet, Linux supervisor 전체 race·vet가 통과했다.
