@@ -114,3 +114,11 @@ Go 1.27.3 Windows amd64 및 WSL2 Linux amd64에서 검증했다. 이전 커밋 `
 | Linux amd64 압축 해제본 양방향 장애 smoke | 통과, 방향별 보호 요청 41개 성공 |
 
 패키지 smoke의 보호 요청 P95는 alpha 6.175ms, beta 6.332ms였다. 각 방향에서 보호 대상 PID 유지와 장애 워커 재시작을 확인했고 종료 로그는 `workers_stopped`였다. 패키지에는 당시 커밋되지 않은 소스가 포함되어 `-version`의 커밋에 `-dirty`가 표시됐다. macOS와 arm64 대상은 빌드·체크섬까지만 검증했으며 실제 실행 결과를 주장하지 않는다. 정식 태그나 릴리스는 발행하지 않았다.
+
+## 2026-10-24 — 공개 설치와 A/B/C 비교 도구
+
+`6af64a9`의 원격 CI는 Linux stable·Linux Go 1.23.x·Windows stable에서 모두 성공했다. 공개 모듈의 정확한 커밋으로 `go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@1dd69bc`가 성공했고 설치한 실행 파일은 `-version`에서 `v0.0.0-20261023155615-1dd69bcc737a`를 출력했다. 소스 빌드는 VCS 커밋·dirty 상태를, 배포 빌드는 주입한 메타데이터를 사용한다.
+
+비교 도구의 통계·한도 검사는 Windows 테스트·vet, Linux race·vet를 통과했다. Windows 실제 크래시 비교의 짧은 기능 검사에서 A/B/C의 자원 합계는 각각 앱 4·실행 4·대기 8이었고, 보호 영역 PID는 공유 A/B에서 변경되고 분리 C에서 유지됐다.
+
+Linux에서는 준비 1s·정상 2s·장애 3s·회복 2s, 두 역할 각각 40rps, seed 42로 A/B/C를 세 번씩 비교했다. 지연 시나리오가 끝난 뒤 크래시 시나리오를 실행했다. 모든 trial에서 생성 누락은 0이었고 자원 합계와 요청 수 집계가 일치했다. 각 시나리오의 C 장애 단계에서 보호 요청은 360/360 성공했다. 공유 A/B의 요청 실패와 PID 변경도 원자료에 남겼다. [짧은 실험 기록](../bench/results/README.md)에 반복별 수치·해석·한계를 공개한다. 이는 장기 성능 합격 판정이 아니다.

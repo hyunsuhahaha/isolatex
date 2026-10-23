@@ -68,6 +68,8 @@ go run ./bench -healthy-group beta -healthy-path /b/work -fault-group alpha -fau
 
 데모 앱은 `/readyz` 이외의 모든 경로에서 `delay`, `crash`, `ignore_cancel`을 지원한다. `DEMO_DELAY`는 기본 지연, `DEMO_MAX_ACTIVE`는 워커 내부 동시 작업 수다. 워커별 `DEMO_FAULT_FILE`에 `{"delay":"2s","status":503}`을 쓰면 그 파일을 사용하는 워커의 요청에 적용한다. `{"ready":false}`로 준비 상태 실패를 주입할 수 있다.
 
+`go run ./bench/compare -scenario delay -out .tools/delay.json`은 런타임과 앱을 직접 시작해 공유 예산·공유 프로세스(A), 분리 예산·공유 프로세스(B), 분리 예산·분리 프로세스(C)를 같은 총 용량에서 비교한다. 기존 런타임이 실행 중일 필요는 없다. `-scenario crash`로 프로세스 장애도 비교한다. 성공 지연시간·응답별 개수·생성 누락을 분리해 저장하며 [실험 조건과 해석](docs/experiments.md)을 함께 확인해야 한다.
+
 ## 설정
 
 [isolatex.yaml](isolatex.yaml)은 alpha 워커 2개와 beta 워커 2개를 실행한다. 명령은 YAML 파일 위치가 아닌 **현재 작업 디렉터리**를 기준으로 셸 없이 실행한다. 앱은 런타임이 주입한 `HOST=127.0.0.1`과 `PORT`를 따라 바인딩하고, 설정한 readiness 경로에서 HTTP 200을 반환해야 한다.

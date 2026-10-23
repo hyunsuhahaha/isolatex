@@ -35,6 +35,11 @@ jobs:
         run: go test -race ./... -count=1 -timeout=90s
       - if: runner.os == 'Linux' && matrix.go == 'stable'
         run: bash scripts/smoke.sh
+      - name: Exercise matched-resource experiment topologies
+        if: runner.os == 'Linux' && matrix.go == 'stable'
+        run: |
+          go run ./bench/compare -warmup 0 -baseline 1s -fault 2s -recovery 1s -repeats 1 -healthy-rate 10 -fault-rate 10 -scenario delay -out bin/compare-delay.json
+          go run ./bench/compare -warmup 0 -baseline 1s -fault 2s -recovery 1s -repeats 1 -healthy-rate 10 -fault-rate 10 -scenario crash -out bin/compare-crash.json
       - name: Verify distribution script and native archive
         if: runner.os == 'Linux' && matrix.go == 'stable'
         run: |

@@ -1,0 +1,1663 @@
+{
+  "app_sha256": "4beef67615c5f79a680a002e31f9a4753d0a5bc74e87f867132a0f4811db3815",
+  "arch": "amd64",
+  "fault_rate": 40,
+  "finished_at": "2026-10-23T16:07:32.110569364Z",
+  "format_version": 1,
+  "go_version": "go1.27.3",
+  "gomaxprocs": 12,
+  "healthy_rate": 40,
+  "load_contract": {
+    "crash_interval_seconds": 1,
+    "demo_baseline_delay_ms": 5,
+    "demo_max_active_per_worker": 1,
+    "fault_delay_ms": 1000,
+    "late_drop_after_ms": 100,
+    "latency_cohort": "requests that started in each phase; in-flight work is not drained between phases",
+    "max_inflight": 256
+  },
+  "logical_cpus": 12,
+  "os": "linux",
+  "runtime_sha256": "5dd74565dbcac91c3e0ba21ab6c3b349bac15dbeba1103529322cf36efc97b70",
+  "scenario": "delay",
+  "scope": "controlled local HTTP experiment; load generator, gateway and app processes share a host; no CPU, memory or DB isolation claim",
+  "seed": 42,
+  "started_at": "2026-10-23T16:06:17.563328976Z",
+  "topologies": {
+    "A": "shared request budget and 4 shared app processes",
+    "B": "split request budgets and 4 shared app processes",
+    "C": "split request budgets and disjoint app processes (2+2)"
+  },
+  "trials": [
+    {
+      "variant": "C",
+      "repeat": 1,
+      "app_processes": 4,
+      "execution_budget": 4,
+      "queue_budget": 8,
+      "protected_pids_unchanged": true,
+      "phases": [
+        {
+          "name": "warmup",
+          "duration_seconds": 1,
+          "healthy": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6469100999999999,
+            "generator_late_max_ms": 1.258785,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.148591,
+              "p95": 6.614014,
+              "p99": 11.188429
+            }
+          },
+          "fault": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6478575999999999,
+            "generator_late_max_ms": 1.135157,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.177744,
+              "p95": 6.515937,
+              "p99": 11.584132
+            }
+          }
+        },
+        {
+          "name": "baseline",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6279683875,
+            "generator_late_max_ms": 1.159512,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.102612,
+              "p95": 6.470019,
+              "p99": 6.708743
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6323204499999999,
+            "generator_late_max_ms": 1.167164,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.110867,
+              "p95": 6.390642,
+              "p99": 7.131347
+            }
+          }
+        },
+        {
+          "name": "fault",
+          "duration_seconds": 3,
+          "healthy": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.642026675,
+            "generator_late_max_ms": 1.190102,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 120
+            },
+            "successful": 120,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.094816,
+              "p95": 6.352828,
+              "p99": 6.76456
+            }
+          },
+          "fault": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6351084,
+            "generator_late_max_ms": 1.214498,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 8,
+              "503": 112
+            },
+            "successful": 8,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.06666666666666667,
+            "successful_latency_ms": {
+              "p50": 1055.137121,
+              "p95": 1079.152337,
+              "p99": 1079.152337
+            }
+          }
+        },
+        {
+          "name": "recovery",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5707737625,
+            "generator_late_max_ms": 1.119985,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.033401,
+              "p95": 6.278396,
+              "p99": 6.369178
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5619013875,
+            "generator_late_max_ms": 1.22343,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 42,
+              "503": 38
+            },
+            "successful": 42,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.525,
+            "successful_latency_ms": {
+              "p50": 6.083607,
+              "p95": 44.256447,
+              "p99": 83.119767
+            }
+          }
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "repeat": 1,
+      "app_processes": 4,
+      "execution_budget": 4,
+      "queue_budget": 8,
+      "protected_pids_unchanged": true,
+      "phases": [
+        {
+          "name": "warmup",
+          "duration_seconds": 1,
+          "healthy": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5857174,
+            "generator_late_max_ms": 1.128482,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.101099,
+              "p95": 6.478737,
+              "p99": 10.888651
+            }
+          },
+          "fault": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.56292985,
+            "generator_late_max_ms": 1.130199,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.085279,
+              "p95": 6.406413,
+              "p99": 11.211334
+            }
+          }
+        },
+        {
+          "name": "baseline",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6353143375,
+            "generator_late_max_ms": 1.130278,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.140563,
+              "p95": 6.34393,
+              "p99": 6.733251
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6404740625,
+            "generator_late_max_ms": 1.129004,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.106629,
+              "p95": 6.377303,
+              "p99": 6.657567
+            }
+          }
+        },
+        {
+          "name": "fault",
+          "duration_seconds": 3,
+          "healthy": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6490404583333333,
+            "generator_late_max_ms": 1.240158,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 9,
+              "503": 111
+            },
+            "successful": 9,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.075,
+            "successful_latency_ms": {
+              "p50": 81.775823,
+              "p95": 94.187388,
+              "p99": 94.187388
+            }
+          },
+          "fault": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6345625666666667,
+            "generator_late_max_ms": 1.154489,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 15,
+              "503": 105
+            },
+            "successful": 15,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.125,
+            "successful_latency_ms": {
+              "p50": 1063.766186,
+              "p95": 1085.730131,
+              "p99": 1085.730131
+            }
+          }
+        },
+        {
+          "name": "recovery",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6062691875,
+            "generator_late_max_ms": 1.146819,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 79,
+              "503": 1
+            },
+            "successful": 79,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.9875,
+            "successful_latency_ms": {
+              "p50": 6.220596,
+              "p95": 40.493705,
+              "p99": 80.651195
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6040943125,
+            "generator_late_max_ms": 1.098408,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 79,
+              "503": 1
+            },
+            "successful": 79,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.9875,
+            "successful_latency_ms": {
+              "p50": 6.178929,
+              "p95": 34.827322,
+              "p99": 74.911048
+            }
+          }
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "repeat": 1,
+      "app_processes": 4,
+      "execution_budget": 4,
+      "queue_budget": 8,
+      "protected_pids_unchanged": true,
+      "phases": [
+        {
+          "name": "warmup",
+          "duration_seconds": 1,
+          "healthy": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.689478975,
+            "generator_late_max_ms": 1.149768,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 11.634717,
+              "p95": 11.860073,
+              "p99": 12.102197
+            }
+          },
+          "fault": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6947536750000001,
+            "generator_late_max_ms": 1.138101,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.47355,
+              "p95": 12.11609,
+              "p99": 15.575143
+            }
+          }
+        },
+        {
+          "name": "baseline",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5826397624999999,
+            "generator_late_max_ms": 1.124164,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.598383,
+              "p95": 11.858592,
+              "p99": 12.349522
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.58445055,
+            "generator_late_max_ms": 1.075104,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 11.356049,
+              "p95": 11.808514,
+              "p99": 12.046146
+            }
+          }
+        },
+        {
+          "name": "fault",
+          "duration_seconds": 3,
+          "healthy": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6171645666666666,
+            "generator_late_max_ms": 1.556529,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 12,
+              "503": 108
+            },
+            "successful": 12,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.1,
+            "successful_latency_ms": {
+              "p50": 913.267415,
+              "p95": 1092.516547,
+              "p99": 1092.516547
+            }
+          },
+          "fault": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.61134875,
+            "generator_late_max_ms": 1.518377,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 8,
+              "503": 112
+            },
+            "successful": 8,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.06666666666666667,
+            "successful_latency_ms": {
+              "p50": 1060.283999,
+              "p95": 1087.177898,
+              "p99": 1087.177898
+            }
+          }
+        },
+        {
+          "name": "recovery",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6231279625,
+            "generator_late_max_ms": 1.147756,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 42,
+              "503": 38
+            },
+            "successful": 42,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.525,
+            "successful_latency_ms": {
+              "p50": 6.606684,
+              "p95": 34.878106,
+              "p99": 73.731677
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6209528375000001,
+            "generator_late_max_ms": 1.123142,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 42,
+              "503": 38
+            },
+            "successful": 42,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.525,
+            "successful_latency_ms": {
+              "p50": 11.485804,
+              "p95": 29.322207,
+              "p99": 68.239076
+            }
+          }
+        }
+      ]
+    },
+    {
+      "variant": "C",
+      "repeat": 2,
+      "app_processes": 4,
+      "execution_budget": 4,
+      "queue_budget": 8,
+      "protected_pids_unchanged": true,
+      "phases": [
+        {
+          "name": "warmup",
+          "duration_seconds": 1,
+          "healthy": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.676314775,
+            "generator_late_max_ms": 1.141332,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.110635,
+              "p95": 7.073756,
+              "p99": 10.020458
+            }
+          },
+          "fault": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.673368425,
+            "generator_late_max_ms": 1.148655,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.118333,
+              "p95": 6.565701,
+              "p99": 10.045625
+            }
+          }
+        },
+        {
+          "name": "baseline",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6623964375,
+            "generator_late_max_ms": 1.179064,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.115818,
+              "p95": 6.379395,
+              "p99": 6.579127
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6691903625000001,
+            "generator_late_max_ms": 1.131155,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.109424,
+              "p95": 6.416527,
+              "p99": 7.515294
+            }
+          }
+        },
+        {
+          "name": "fault",
+          "duration_seconds": 3,
+          "healthy": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6038262249999999,
+            "generator_late_max_ms": 1.237422,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 120
+            },
+            "successful": 120,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.129271,
+              "p95": 6.342378,
+              "p99": 6.409104
+            }
+          },
+          "fault": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6021227166666667,
+            "generator_late_max_ms": 1.15473,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 8,
+              "503": 112
+            },
+            "successful": 8,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.06666666666666667,
+            "successful_latency_ms": {
+              "p50": 1052.605799,
+              "p95": 1079.420098,
+              "p99": 1079.420098
+            }
+          }
+        },
+        {
+          "name": "recovery",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5948266999999999,
+            "generator_late_max_ms": 1.114322,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.072344,
+              "p95": 6.28689,
+              "p99": 6.317265
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5980988125,
+            "generator_late_max_ms": 1.142387,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 43,
+              "503": 37
+            },
+            "successful": 43,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.5375,
+            "successful_latency_ms": {
+              "p50": 6.095887,
+              "p95": 45.74775,
+              "p99": 84.673994
+            }
+          }
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "repeat": 2,
+      "app_processes": 4,
+      "execution_budget": 4,
+      "queue_budget": 8,
+      "protected_pids_unchanged": true,
+      "phases": [
+        {
+          "name": "warmup",
+          "duration_seconds": 1,
+          "healthy": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6009507,
+            "generator_late_max_ms": 1.073866,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.101575,
+              "p95": 6.460251,
+              "p99": 11.056345
+            }
+          },
+          "fault": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6037058249999999,
+            "generator_late_max_ms": 1.123978,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.131406,
+              "p95": 6.423612,
+              "p99": 11.415089
+            }
+          }
+        },
+        {
+          "name": "baseline",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.641770425,
+            "generator_late_max_ms": 1.175236,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.115714,
+              "p95": 6.297442,
+              "p99": 6.641495
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6418184499999999,
+            "generator_late_max_ms": 1.172602,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.10834,
+              "p95": 6.327176,
+              "p99": 6.513982
+            }
+          }
+        },
+        {
+          "name": "fault",
+          "duration_seconds": 3,
+          "healthy": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6256545083333332,
+            "generator_late_max_ms": 1.114509,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 6,
+              "503": 114
+            },
+            "successful": 6,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.05,
+            "successful_latency_ms": {
+              "p50": 6.606316,
+              "p95": 84.830788,
+              "p99": 84.830788
+            }
+          },
+          "fault": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6220852666666667,
+            "generator_late_max_ms": 1.1443,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 15,
+              "503": 105
+            },
+            "successful": 15,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.125,
+            "successful_latency_ms": {
+              "p50": 1077.940439,
+              "p95": 1085.442211,
+              "p99": 1085.442211
+            }
+          }
+        },
+        {
+          "name": "recovery",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5962578125,
+            "generator_late_max_ms": 1.138468,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 79,
+              "503": 1
+            },
+            "successful": 79,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.9875,
+            "successful_latency_ms": {
+              "p50": 6.135776,
+              "p95": 23.358103,
+              "p99": 69.560611
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5917551875,
+            "generator_late_max_ms": 1.170378,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 79,
+              "503": 1
+            },
+            "successful": 79,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.9875,
+            "successful_latency_ms": {
+              "p50": 6.144222,
+              "p95": 28.974948,
+              "p99": 63.699783
+            }
+          }
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "repeat": 2,
+      "app_processes": 4,
+      "execution_budget": 4,
+      "queue_budget": 8,
+      "protected_pids_unchanged": true,
+      "phases": [
+        {
+          "name": "warmup",
+          "duration_seconds": 1,
+          "healthy": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.649115075,
+            "generator_late_max_ms": 1.081581,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.762879,
+              "p95": 11.992284,
+              "p99": 15.772825
+            }
+          },
+          "fault": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6542094,
+            "generator_late_max_ms": 1.096096,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 11.538464,
+              "p95": 12.082801,
+              "p99": 12.421676
+            }
+          }
+        },
+        {
+          "name": "baseline",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.584733,
+            "generator_late_max_ms": 1.170897,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.855852,
+              "p95": 11.837433,
+              "p99": 11.947551
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5904238,
+            "generator_late_max_ms": 1.125836,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.658248,
+              "p95": 11.81997,
+              "p99": 11.986956
+            }
+          }
+        },
+        {
+          "name": "fault",
+          "duration_seconds": 3,
+          "healthy": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6070849666666667,
+            "generator_late_max_ms": 1.216699,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 11,
+              "503": 109
+            },
+            "successful": 11,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.09166666666666666,
+            "successful_latency_ms": {
+              "p50": 1084.346467,
+              "p95": 1093.282665,
+              "p99": 1093.282665
+            }
+          },
+          "fault": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6114419,
+            "generator_late_max_ms": 1.226207,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 8,
+              "503": 112
+            },
+            "successful": 8,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.06666666666666667,
+            "successful_latency_ms": {
+              "p50": 1079.318963,
+              "p95": 1087.879414,
+              "p99": 1087.879414
+            }
+          }
+        },
+        {
+          "name": "recovery",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.646649275,
+            "generator_late_max_ms": 1.105082,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 42,
+              "503": 38
+            },
+            "successful": 42,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.525,
+            "successful_latency_ms": {
+              "p50": 6.336755,
+              "p95": 59.92304,
+              "p99": 98.438888
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6536436750000001,
+            "generator_late_max_ms": 1.215941,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 43,
+              "503": 37
+            },
+            "successful": 43,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.5375,
+            "successful_latency_ms": {
+              "p50": 6.338499,
+              "p95": 54.0741,
+              "p99": 92.635312
+            }
+          }
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "repeat": 3,
+      "app_processes": 4,
+      "execution_budget": 4,
+      "queue_budget": 8,
+      "protected_pids_unchanged": true,
+      "phases": [
+        {
+          "name": "warmup",
+          "duration_seconds": 1,
+          "healthy": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6729700500000001,
+            "generator_late_max_ms": 1.109999,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.849714,
+              "p95": 12.003077,
+              "p99": 12.794441
+            }
+          },
+          "fault": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.67279805,
+            "generator_late_max_ms": 1.075974,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 11.20037,
+              "p95": 12.022524,
+              "p99": 15.928407
+            }
+          }
+        },
+        {
+          "name": "baseline",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6314867624999999,
+            "generator_late_max_ms": 1.157673,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.433529,
+              "p95": 11.869974,
+              "p99": 12.030368
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.626861125,
+            "generator_late_max_ms": 1.145804,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 11.570163,
+              "p95": 11.882269,
+              "p99": 12.076918
+            }
+          }
+        },
+        {
+          "name": "fault",
+          "duration_seconds": 3,
+          "healthy": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5733540333333333,
+            "generator_late_max_ms": 1.167491,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 11,
+              "503": 109
+            },
+            "successful": 11,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.09166666666666666,
+            "successful_latency_ms": {
+              "p50": 1059.114084,
+              "p95": 1091.677373,
+              "p99": 1091.677373
+            }
+          },
+          "fault": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5684367833333334,
+            "generator_late_max_ms": 1.17772,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 8,
+              "503": 112
+            },
+            "successful": 8,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.06666666666666667,
+            "successful_latency_ms": {
+              "p50": 1078.659143,
+              "p95": 1086.508334,
+              "p99": 1086.508334
+            }
+          }
+        },
+        {
+          "name": "recovery",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6367595,
+            "generator_late_max_ms": 1.103047,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 42,
+              "503": 38
+            },
+            "successful": 42,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.525,
+            "successful_latency_ms": {
+              "p50": 6.552465,
+              "p95": 58.483992,
+              "p99": 96.760041
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6307909,
+            "generator_late_max_ms": 1.154333,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 42,
+              "503": 38
+            },
+            "successful": 42,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.525,
+            "successful_latency_ms": {
+              "p50": 11.460606,
+              "p95": 52.914282,
+              "p99": 91.37177
+            }
+          }
+        }
+      ]
+    },
+    {
+      "variant": "C",
+      "repeat": 3,
+      "app_processes": 4,
+      "execution_budget": 4,
+      "queue_budget": 8,
+      "protected_pids_unchanged": true,
+      "phases": [
+        {
+          "name": "warmup",
+          "duration_seconds": 1,
+          "healthy": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5755817750000001,
+            "generator_late_max_ms": 1.07473,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.097602,
+              "p95": 6.450993,
+              "p99": 10.287706
+            }
+          },
+          "fault": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5771594499999999,
+            "generator_late_max_ms": 1.135367,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.141493,
+              "p95": 6.495647,
+              "p99": 10.422842
+            }
+          }
+        },
+        {
+          "name": "baseline",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6226639625,
+            "generator_late_max_ms": 1.153757,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.129644,
+              "p95": 6.454531,
+              "p99": 6.930506
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.623175,
+            "generator_late_max_ms": 1.129854,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.143892,
+              "p95": 6.45271,
+              "p99": 6.799935
+            }
+          }
+        },
+        {
+          "name": "fault",
+          "duration_seconds": 3,
+          "healthy": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6576075666666666,
+            "generator_late_max_ms": 1.176146,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 120
+            },
+            "successful": 120,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.155779,
+              "p95": 6.645581,
+              "p99": 6.810859
+            }
+          },
+          "fault": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.656291725,
+            "generator_late_max_ms": 1.201518,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 8,
+              "503": 112
+            },
+            "successful": 8,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.06666666666666667,
+            "successful_latency_ms": {
+              "p50": 1077.910385,
+              "p95": 1079.772674,
+              "p99": 1079.772674
+            }
+          }
+        },
+        {
+          "name": "recovery",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.6285334250000001,
+            "generator_late_max_ms": 1.167927,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.116888,
+              "p95": 6.616162,
+              "p99": 6.684791
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.627854525,
+            "generator_late_max_ms": 1.146852,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 42,
+              "503": 38
+            },
+            "successful": 42,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.525,
+            "successful_latency_ms": {
+              "p50": 6.124455,
+              "p95": 21.658026,
+              "p99": 85.071731
+            }
+          }
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "repeat": 3,
+      "app_processes": 4,
+      "execution_budget": 4,
+      "queue_budget": 8,
+      "protected_pids_unchanged": true,
+      "phases": [
+        {
+          "name": "warmup",
+          "duration_seconds": 1,
+          "healthy": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.611611675,
+            "generator_late_max_ms": 1.138945,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.055372,
+              "p95": 6.463365,
+              "p99": 10.891054
+            }
+          },
+          "fault": {
+            "scheduled": 40,
+            "sent": 40,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.619281375,
+            "generator_late_max_ms": 1.131178,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 40
+            },
+            "successful": 40,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.072073,
+              "p95": 6.483708,
+              "p99": 11.095671
+            }
+          }
+        },
+        {
+          "name": "baseline",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.603950625,
+            "generator_late_max_ms": 1.166615,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.077273,
+              "p95": 6.422101,
+              "p99": 6.702324
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.60624245,
+            "generator_late_max_ms": 1.165123,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.078496,
+              "p95": 6.427137,
+              "p99": 6.639691
+            }
+          }
+        },
+        {
+          "name": "fault",
+          "duration_seconds": 3,
+          "healthy": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.61022675,
+            "generator_late_max_ms": 1.174188,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 9,
+              "503": 111
+            },
+            "successful": 9,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.075,
+            "successful_latency_ms": {
+              "p50": 64.002817,
+              "p95": 83.178639,
+              "p99": 83.178639
+            }
+          },
+          "fault": {
+            "scheduled": 120,
+            "sent": 120,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.60751495,
+            "generator_late_max_ms": 1.165941,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 15,
+              "503": 105
+            },
+            "successful": 15,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 0.125,
+            "successful_latency_ms": {
+              "p50": 1066.128945,
+              "p95": 1091.723071,
+              "p99": 1091.723071
+            }
+          }
+        },
+        {
+          "name": "recovery",
+          "duration_seconds": 2,
+          "healthy": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5814735124999999,
+            "generator_late_max_ms": 1.169379,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.214576,
+              "p95": 48.029915,
+              "p99": 101.889334
+            }
+          },
+          "fault": {
+            "scheduled": 80,
+            "sent": 80,
+            "generator_missed": 0,
+            "generator_late_mean_ms": 0.5765466,
+            "generator_late_max_ms": 1.166783,
+            "transport_errors": 0,
+            "statuses": {
+              "200": 80
+            },
+            "successful": 80,
+            "sent_per_phase_second": 40,
+            "success_ratio_of_sent": 1,
+            "successful_latency_ms": {
+              "p50": 6.205099,
+              "p95": 42.37187,
+              "p99": 96.332607
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
