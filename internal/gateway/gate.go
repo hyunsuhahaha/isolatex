@@ -43,7 +43,7 @@ func (g *gate) acquire(ctx context.Context, timeout time.Duration) error {
 		g.mu.Unlock()
 		return errDraining
 	}
-	if err := ctx.Err(); err != nil {
+	if err := contextErrorAt(ctx, g.now()); err != nil {
 		g.mu.Unlock()
 		return err
 	}
@@ -81,7 +81,7 @@ func (g *gate) acquire(ctx context.Context, timeout time.Duration) error {
 	} else if w.err != nil {
 		err = w.err
 	}
-	if contextErr := ctx.Err(); contextErr != nil {
+	if contextErr := contextErrorAt(ctx, g.now()); contextErr != nil {
 		err = contextErr
 	}
 	if g.closed {
@@ -104,7 +104,7 @@ func (g *gate) releaseLocked() {
 		w := e.Value.(*waiter)
 		// Do not hand capacity to a dead waiter and depend on its goroutine
 		// running to give it back. Continue directly to the oldest live one.
-		if err := w.ctx.Err(); err != nil {
+		if err := contextErrorAt(w.ctx, g.now()); err != nil {
 			w.err = err
 		} else if !g.now().Before(w.deadline) {
 			w.err = errQueueTimeout
@@ -133,4 +133,16 @@ func (g *gate) snapshot() (int, int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.active, g.queue.Len()
+}
+
+// Deadline cancellation is delivered by a timer goroutine. Admission must also
+// honor the deadline while that goroutine is waiting to run.
+func contextErrorAt(ctx context.Context, now time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if deadline, ok := ctx.Deadline(); ok && !now.Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	return nil
 }
