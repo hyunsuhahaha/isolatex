@@ -5,6 +5,7 @@ permissions:
   contents: read
 jobs:
   build:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -12,6 +13,10 @@ jobs:
         with:
           go-version: stable
           cache: true
+      - name: Check known vulnerabilities before packaging
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -C cmd/isolatex -scan module
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - run: go test ./... -count=1 -timeout=90s
       - run: bash scripts/build-dist.sh "dev-${GITHUB_SHA::12}"
       - name: Verify native artifact and checksums

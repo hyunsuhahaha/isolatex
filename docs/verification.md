@@ -134,3 +134,13 @@ Linux에서는 준비 1s·정상 2s·장애 3s·회복 2s, 두 역할 각각 40r
 Go 배포본 `src/time/time.go`의 단조 시계 계약을 확인했다. 기존 UnixNano 기반 버킷은 제어된 테스트에서 표시 시각이 뒤로 이동하자 최근 실패 두 개가 집계에서 사라져 실패했다. 버킷을 `time.Since` 경과 시간으로 바꾼 뒤 표시 시각의 후진·전진에도 기록이 유지되고 실제 윈도 경과에만 만료되는 검사가 통과했다. Open 대기와 `open_until` 관측 시각은 기존 Go time.Time 계약을 유지한다.
 
 Windows breaker·gateway 전체 테스트 및 vet, Linux breaker·gateway race 검사가 통과했다. 시각 보정을 위해 개발 머신의 시스템 시각을 변경하지 않았으며 독립된 테스트 시계로 재현했다.
+
+## 2026-10-24 — 알려진 의존성 취약점 제거와 지원 하한 변경
+
+govulncheck v1.9.0으로 Go 1.27.3 Windows·Linux 소스를 검사했다. 변경 전 도달 가능한 취약 함수는 0이었지만 `golang.org/x/sys v0.35.0`의 Windows `NewNTUnicodeString` 취약점 [GO-2026-5024](https://pkg.go.dev/vuln/GO-2026-5024)가 모듈 수준에서 발견됐다. 수정된 v0.44.0으로 올렸으며 이 의존성의 요구 사항에 맞춰 최소 Go를 1.25.0으로 변경했다.
+
+변경 후 Windows·Linux 모두 모듈 수준 검사와 전체 패키지 호출 수준 검사에서 `No vulnerabilities found.`를 출력했다. 실제 재현 명령은 `SECURITY.md`에 있다. Go 1.27.3 Windows 전체 테스트·vet, Linux 전체 race·vet, Go 1.25.0 Linux 전체 테스트, 모듈 체크섬 검증도 통과했다. 컴파일 호환성 하한과 Go upstream의 운영 보안 지원 기간을 구분해 문서화했다.
+
+수정된 의존성으로 다섯 배포 대상 재빌드와 SHA-256 검증을 통과했다. Windows amd64 압축 해제본을 기본 설정으로 실제 실행해 상대 경로 `./bin/demo-app`으로 네 워커가 시작되는 것을 확인했다. 두 방향 장애 smoke에서 각각 보호 요청 41개 성공·PID 유지·장애 워커 재시작이 확인됐으며 그룹별 준비 상태 두 경로는 200이었다. Ctrl+C 후 `workers_stopped` 로그와 모든 워커 PID 종료, 8080·9090·9100–9101·9200–9201 포트 재바인딩 성공을 확인했다. 이 네이티브 Windows 검사는 직접 자식 범위이며 자손 트리 종료를 입증하지 않는다.
+
+CI는 Linux amd64/arm64, Windows amd64, macOS arm64/Intel stable과 Linux/Windows Go 1.25.x 호환성 행으로 확장했다. 새 네이티브 행의 실제 결과는 원격 실행 완료 후 확인하며 이 기록에서는 아직 성공을 주장하지 않는다. stable 행과 수동 배포 workflow는 고정한 govulncheck로 포장 전 취약점 검사를 실행한다.

@@ -4,7 +4,7 @@ IsolateX는 사용자가 정의한 그룹 사이에서 장애의 영향 범위�
 
 ## 개발과 검사
 
-Go 1.23 이상을 사용한다. Linux 프로세스 수명 검증에는 Linux 또는 WSL2가 필요하다.
+Go 1.25 이상을 사용한다. Linux 프로세스 수명 검증에는 Linux 또는 WSL2가 필요하다.
 
 ```sh
 go test ./... -count=1 -timeout=90s

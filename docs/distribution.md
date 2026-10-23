@@ -4,7 +4,7 @@
 
 ## 빌드
 
-Linux 또는 WSL2에서 Go 1.23 이상, Git, Bash, tar, sha256sum이 필요하다.
+Linux 또는 WSL2에서 Go 1.25 이상, Git, Bash, tar, sha256sum이 필요하다.
 
 ```sh
 bash scripts/build-dist.sh dev

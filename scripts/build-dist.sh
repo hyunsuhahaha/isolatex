@@ -31,7 +31,7 @@ for target in ${TARGETS:-linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darw
   mkdir -p "$package/bin" "$package/docs" "$package/examples"
   GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -ldflags "$ldflags" -o "$package/bin/isolatex$suffix" ./cmd/isolatex
   GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -o "$package/bin/demo-app$suffix" ./examples/demo-app
-  cp README.md LICENSE CONTRIBUTING.md isolatex.yaml "$package/"
+  cp README.md LICENSE CONTRIBUTING.md SECURITY.md isolatex.yaml "$package/"
   cp docs/*.md "$package/docs/"
   cp examples/static.yaml "$package/examples/"
   archive="$name.tar.gz"
