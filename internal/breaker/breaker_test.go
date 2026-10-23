@@ -11,9 +11,31 @@ import (
 
 func fixture() (*Breaker, *time.Time) {
 	now := time.Unix(1000, 0)
+	started := now
 	b := New(&config.CircuitBreaker{Window: 10 * time.Second, MinRequests: 4, FailureRatio: .5, OpenTimeout: time.Second})
 	b.now = func() time.Time { return now }
+	b.elapsed = func() time.Duration { return now.Sub(started) }
 	return b, &now
+}
+
+func TestRollingWindowUsesElapsedTimeAcrossWallClockCorrections(t *testing.T) {
+	b, monotonic := fixture()
+	complete(t, b, Failure)
+	complete(t, b, Failure)
+	wall := monotonic.Add(-time.Hour)
+	b.now = func() time.Time { return wall }
+	if got := b.Snapshot().Requests; got != 2 {
+		t.Fatalf("wall clock moved backward and erased recent results: %d", got)
+	}
+	complete(t, b, Success)
+	wall = wall.Add(2 * time.Hour)
+	if got := b.Snapshot().Requests; got != 3 {
+		t.Fatalf("wall clock moved forward and expired recent results: %d", got)
+	}
+	*monotonic = monotonic.Add(10 * time.Second)
+	if got := b.Snapshot().Requests; got != 0 {
+		t.Fatalf("elapsed window did not expire: %d", got)
+	}
 }
 
 func complete(t *testing.T, b *Breaker, result Result) {

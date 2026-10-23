@@ -128,3 +128,9 @@ Linux에서는 준비 1s·정상 2s·장애 3s·회복 2s, 두 역할 각각 40r
 ## 2026-10-24 — 그룹별 준비 상태
 
 새 실제 HTTP 테스트는 기존 구현에서 `/readyz/normal`이 404라 실패했다. `GET /readyz/{group}`를 추가한 뒤 한 그룹 실패·다른 그룹 유지·반대 그룹 회복·전체 drain·없는 그룹·생존 상태를 Windows gateway 테스트·vet와 Linux gateway race 검사로 검증했다. 전역 `/readyz`의 기존 전체 그룹 집계 동작은 유지한다. 그룹 준비 상태는 워커 존재와 drain 여부이며 포화·차단기·요청 성공 여부와는 별개의 계약이다.
+
+## 2026-10-24 — 차단기 윈도의 단조 시간
+
+Go 배포본 `src/time/time.go`의 단조 시계 계약을 확인했다. 기존 UnixNano 기반 버킷은 제어된 테스트에서 표시 시각이 뒤로 이동하자 최근 실패 두 개가 집계에서 사라져 실패했다. 버킷을 `time.Since` 경과 시간으로 바꾼 뒤 표시 시각의 후진·전진에도 기록이 유지되고 실제 윈도 경과에만 만료되는 검사가 통과했다. Open 대기와 `open_until` 관측 시각은 기존 Go time.Time 계약을 유지한다.
+
+Windows breaker·gateway 전체 테스트 및 vet, Linux breaker·gateway race 검사가 통과했다. 시각 보정을 위해 개발 머신의 시스템 시각을 변경하지 않았으며 독립된 테스트 시계로 재현했다.
