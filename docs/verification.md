@@ -143,4 +143,6 @@ govulncheck v1.9.0으로 Go 1.27.3 Windows·Linux 소스를 검사했다. 변경
 
 수정된 의존성으로 다섯 배포 대상 재빌드와 SHA-256 검증을 통과했다. Windows amd64 압축 해제본을 기본 설정으로 실제 실행해 상대 경로 `./bin/demo-app`으로 네 워커가 시작되는 것을 확인했다. 두 방향 장애 smoke에서 각각 보호 요청 41개 성공·PID 유지·장애 워커 재시작이 확인됐으며 그룹별 준비 상태 두 경로는 200이었다. Ctrl+C 후 `workers_stopped` 로그와 모든 워커 PID 종료, 8080·9090·9100–9101·9200–9201 포트 재바인딩 성공을 확인했다. 이 네이티브 Windows 검사는 직접 자식 범위이며 자손 트리 종료를 입증하지 않는다.
 
-CI는 Linux amd64/arm64, Windows amd64, macOS arm64/Intel stable과 Linux/Windows Go 1.25.x 호환성 행으로 확장했다. 새 네이티브 행의 실제 결과는 원격 실행 완료 후 확인하며 이 기록에서는 아직 성공을 주장하지 않는다. stable 행과 수동 배포 workflow는 고정한 govulncheck로 포장 전 취약점 검사를 실행한다.
+CI는 Linux amd64/arm64, Windows amd64, macOS arm64/Intel stable과 Linux/Windows Go 1.25.x 호환성 행으로 확장했다. stable 행과 수동 배포 workflow는 고정한 govulncheck로 포장 전 취약점 검사를 실행한다.
+
+`0cf0332`의 push·PR 실행은 7개 구성, 합계 14개 check가 모두 성공했다. macOS 로그에서 `go1.27.3 darwin/arm64`와 `go1.27.3 darwin/amd64`를, ARM Linux 로그에서 `go1.27.3 linux/arm64`를 확인했다. 각 stable 행의 모듈·호출 수준 취약점 검사는 모두 미검출이었다. Linux 두 아키텍처는 전체 race·양방향 CLI smoke·지연/크래시 비교 실행·네이티브 배포 압축 해제본 검사를 통과했다. macOS 두 아키텍처는 전체 테스트·vet·취약점 검사를 통과했으며 배포 압축 파일 자체의 실행 검사와 구분한다. [원격 CI 실행](https://github.com/hyunsuhahaha/isolatex/actions/runs/39988723571)
