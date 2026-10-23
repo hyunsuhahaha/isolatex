@@ -139,6 +139,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("at least one bulkhead is required")
 	}
 	prefixes := map[string]bool{}
+	remaining := c.MaxAdmitted
 	for name, g := range c.Bulkheads {
 		if !groupName.MatchString(name) {
 			return fmt.Errorf("invalid group name %q", name)
@@ -151,6 +152,15 @@ func (c Config) Validate() error {
 		if g.MaxConcurrent < 1 || g.QueueSize < 0 || g.QueueTimeout <= 0 || g.RequestTimeout <= 0 {
 			return fmt.Errorf("%s: invalid request/queue limits", name)
 		}
+		// Reserve each group's entire active + queued budget at startup. A
+		// smaller shared runtime semaphore would let a slow group consume the
+		// slots promised to another. Subtract instead of summing to avoid int
+		// overflow for untrusted configuration values.
+		if g.MaxConcurrent > remaining || g.QueueSize > remaining-g.MaxConcurrent {
+			return fmt.Errorf("%s: sum of bulkhead max_concurrent + queue_size must not exceed max_admitted_requests (%d); remaining capacity is %d", name, c.MaxAdmitted, remaining)
+		}
+		remaining -= g.MaxConcurrent
+		remaining -= g.QueueSize
 		if b := g.CircuitBreaker; b != nil {
 			if b.Window < time.Millisecond || b.MinRequests < 1 || math.IsNaN(b.FailureRatio) || math.IsInf(b.FailureRatio, 0) || b.FailureRatio <= 0 || b.FailureRatio > 1 || b.OpenTimeout <= 0 {
 				return fmt.Errorf("%s: invalid circuit_breaker window, minimum requests, failure ratio or open timeout", name)

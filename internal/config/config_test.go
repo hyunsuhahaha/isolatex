@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -35,6 +36,37 @@ func TestDecodeStrictValidation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Decode(strings.NewReader(input)); err == nil {
 				t.Fatal("invalid config accepted")
+			}
+		})
+	}
+}
+
+func TestAdmissionBudgetReservesEveryBulkhead(t *testing.T) {
+	// Each group needs two running and one queued request. A shared cap of
+	// three would otherwise allow either group to starve the other completely.
+	twoGroups := validConfig + strings.ReplaceAll(strings.ReplaceAll(
+		strings.SplitN(validConfig, "bulkheads:\n", 2)[1], "normal:", "external:"),
+		"path_prefix: /api", "path_prefix: /api/erp")
+	for _, tt := range []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"single exact", validConfig + "max_admitted_requests: 3\n", true},
+		{"single insufficient", validConfig + "max_admitted_requests: 2\n", false},
+		{"two exact", twoGroups + "max_admitted_requests: 6\n", true},
+		{"two spare", twoGroups + "max_admitted_requests: 7\n", true},
+		{"two overcommitted", twoGroups + "max_admitted_requests: 5\n", false},
+		{"default overcommitted", strings.Replace(validConfig, "max_concurrent: 2", "max_concurrent: 256", 1), false},
+		{"integer overflow", strings.Replace(validConfig, "max_concurrent: 2", "max_concurrent: "+strconv.Itoa(int(^uint(0)>>1)), 1) + "max_admitted_requests: " + strconv.Itoa(int(^uint(0)>>1)) + "\n", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Decode(strings.NewReader(tt.input))
+			if tt.valid && err != nil {
+				t.Fatal(err)
+			}
+			if !tt.valid && (err == nil || !strings.Contains(err.Error(), "max_admitted_requests")) {
+				t.Fatalf("expected admission budget error, got %v", err)
 			}
 		})
 	}

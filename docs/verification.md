@@ -45,3 +45,34 @@ bash scripts/smoke.sh .tools/smoke.yaml http://127.0.0.1:18080 http://127.0.0.1:
 이는 로컬 기능 검사다. 공유 풀 대비 성능 개선율, CPU·DB 격리, 대규모 부하나 운영 안정성을 입증하는 결과가 아니다. 설계 문서의 A/B/C 비교 실험은 아직 수행하지 않았다.
 
 Windows의 별도 백그라운드 CLI 실행·프로세스 정리 명령은 자동 승인 검토에서 차단됐고 세부 이유는 제공되지 않았다. Windows에서는 빌드와 실제 자식 프로세스를 사용하는 통합 테스트까지 검증했고, CLI 전체 실행 smoke는 Linux에서 검증했다.
+
+## 2026-10-24 — 격벽 용량 예약
+
+Go 1.27.3, Windows amd64 및 WSL2 Ubuntu Linux amd64에서 검증했다. 각 OS의 공식 배포본 SHA-256을 확인하고 저장소의 Git 제외 폴더 `.tools`에서 실행했다.
+
+| 검사 | 결과 |
+| --- | --- |
+| Windows `go test ./... -count=1 -timeout=90s` | 통과 |
+| Windows `go vet ./...` | 통과 |
+| Windows 격벽 포화·예약·FIFO/취소 경합 테스트 10회 | 통과 |
+| 기본 설정 `-check` | 통과 |
+| Linux `go test -race ./... -count=1 -timeout=90s` | 통과 |
+| Linux `go vet ./...` | 통과 |
+| Linux `bash scripts/smoke.sh` | 통과 |
+
+수정 전에는 새 설정 테스트 중 부족한 단일 그룹 예산, 여러 그룹 합계 초과, 기본 상한 초과, 정수 오버플로 네 경우가 모두 오류 없이 수용되어 실패했다. 수정 후에는 모두 시작 시 거부한다. 실제 HTTP 테스트는 실행 1 + 대기 1인 두 그룹을 전역 상한 4와 8에서 각각 검증했다. ERP 두 자리를 채운 뒤 초과 요청 32개를 보내는 동안 일반 그룹의 두 자리도 수용되고, 초과 요청은 `queue_full`로 거부되며, 완료 후 모든 슬롯이 회수됐다.
+
+CLI 장애 데모 결과:
+
+```json
+{
+  "erp_status_counts": {"200": 2, "503": 10},
+  "erp_worker_restarted": true,
+  "normal_p95_ms": 6.79,
+  "normal_pids_unchanged": true,
+  "normal_requests": 41,
+  "result": "passed"
+}
+```
+
+종료 로그에서 `workers_stopped`를 확인했다. P95는 이번 로컬 기능 검사에서 관측한 값이며 기존 수치와의 성능 비교 결과가 아니다. 이번 변경은 경로별 요청·프로세스 격리를 대상으로 하며 CPU·메모리의 OS 자원 상한은 추가하지 않았다.

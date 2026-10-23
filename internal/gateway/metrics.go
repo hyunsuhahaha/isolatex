@@ -78,7 +78,7 @@ func (m *metrics) record(outcome string, d time.Duration) {
 	m.requests.WithLabelValues(outcome).Inc()
 	m.duration.WithLabelValues(outcome).Observe(d.Seconds())
 	switch outcome {
-	case "global_full", "queue_full", "queue_timeout", "no_ready_worker", "circuit_open", "draining":
+	case "queue_full", "queue_timeout", "no_ready_worker", "circuit_open", "draining":
 		m.rejected.WithLabelValues(outcome).Inc()
 	}
 }

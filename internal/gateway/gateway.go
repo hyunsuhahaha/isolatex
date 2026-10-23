@@ -33,14 +33,15 @@ type group struct {
 type Gateway struct {
 	cfg      config.Config
 	groups   []*group
-	admitted chan struct{}
 	draining atomic.Bool
 	log      *slog.Logger
 	registry *prometheus.Registry
 }
 
+// New requires a validated config. The group gates enforce the global bound
+// through reserved budgets, without a shared semaphore on the request path.
 func New(c config.Config, pools map[string]*pool.Pool, logger *slog.Logger) *Gateway {
-	g := &Gateway{cfg: c, admitted: make(chan struct{}, c.MaxAdmitted), log: logger, registry: newRegistry()}
+	g := &Gateway{cfg: c, log: logger, registry: newRegistry()}
 	for name, cfg := range c.Bulkheads {
 		t := &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext, MaxIdleConns: cfg.MaxConcurrent, MaxIdleConnsPerHost: cfg.MaxConcurrent, MaxConnsPerHost: cfg.MaxConcurrent, IdleConnTimeout: 30 * time.Second, ResponseHeaderTimeout: cfg.RequestTimeout, MaxResponseHeaderBytes: 64 << 10, DisableCompression: true}
 		b := &group{name: name, cfg: cfg, pool: pools[name], gate: newGate(cfg.MaxConcurrent, cfg.QueueSize), transport: t, breaker: breaker.New(cfg.CircuitBreaker)}
@@ -110,14 +111,6 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if b.breaker.Blocked() {
 		outcome = "circuit_open"
-		fail(w, 503, outcome)
-		return
-	}
-	select {
-	case g.admitted <- struct{}{}:
-		defer func() { <-g.admitted }()
-	default:
-		outcome = "global_full"
 		fail(w, 503, outcome)
 		return
 	}

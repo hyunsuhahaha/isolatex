@@ -19,7 +19,7 @@ func testGateway(t *testing.T, handler http.Handler, options ...func(*config.Con
 	t.Helper()
 	up := httptest.NewServer(handler)
 	t.Cleanup(up.Close)
-	c := config.Config{MaxAdmitted: 20, MaxBodyBytes: 32, Bulkheads: map[string]config.Group{}}
+	c := config.Config{Version: 1, Listen: "127.0.0.1:8080", AdminListen: "127.0.0.1:9090", MaxAdmitted: 4, MaxBodyBytes: 32, ShutdownGrace: time.Second, Bulkheads: map[string]config.Group{}}
 	for _, name := range []string{"normal", "external"} {
 		b := config.Group{MaxConcurrent: 1, QueueSize: 1, QueueTimeout: time.Second, RequestTimeout: 2 * time.Second, Upstreams: []string{up.URL}}
 		b.Match.PathPrefix = "/api"
@@ -30,6 +30,9 @@ func testGateway(t *testing.T, handler http.Handler, options ...func(*config.Con
 	}
 	for _, option := range options {
 		option(&c)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
 	}
 	g := New(c, map[string]*pool.Pool{"normal": pool.New([]string{up.URL}, true), "external": pool.New([]string{up.URL}, true)}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	t.Cleanup(g.Close)
@@ -169,9 +172,6 @@ func TestTimeoutReleasesCapacity(t *testing.T) {
 	if a != 0 || q != 0 {
 		t.Fatalf("leak: %d %d", a, q)
 	}
-	if len(g.admitted) != 0 {
-		t.Fatal("global admission leak")
-	}
 }
 
 func TestQueueFIFOAndCancellationRace(t *testing.T) {
@@ -281,24 +281,26 @@ func TestChunkedBodyLimitAndClientCancelReleaseSlots(t *testing.T) {
 	eventually(t, func() bool { a, _ := g.groups[0].gate.snapshot(); return a == 1 })
 	cancel()
 	<-done
-	eventually(t, func() bool { a, q := g.groups[0].gate.snapshot(); return a == 0 && q == 0 && len(g.admitted) == 0 })
+	eventually(t, func() bool { a, q := g.groups[0].gate.snapshot(); return a == 0 && q == 0 })
 	if got := code(t, s.Client(), s.URL+"/api/erp"); got != 200 {
 		t.Fatal(got)
 	}
 }
 
-func TestGlobalLimitNoReadyWorkerAndAdminDrain(t *testing.T) {
+func TestNoReadyWorkerAndAdminDrain(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
 	g, s := testGateway(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/erp" {
+			return
+		}
 		close(entered)
 		select {
 		case <-release:
 		case <-r.Context().Done():
 		}
 	}))
-	g.admitted = make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -308,8 +310,8 @@ func TestGlobalLimitNoReadyWorkerAndAdminDrain(t *testing.T) {
 		}
 	}()
 	<-entered
-	if got := code(t, s.Client(), s.URL+"/api/orders"); got != 503 {
-		t.Fatalf("global limit=%d", got)
+	if got := code(t, s.Client(), s.URL+"/api/orders"); got != 200 {
+		t.Fatalf("normal affected by active ERP request: %d", got)
 	}
 	release <- struct{}{}
 	<-done
