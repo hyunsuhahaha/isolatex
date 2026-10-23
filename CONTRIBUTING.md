@@ -15,6 +15,8 @@ bash scripts/smoke.sh
 
 race 검사는 C 컴파일러가 필요하다. smoke는 실제 자식 프로세스를 실행·종료하며 기본 포트 8080, 9090, 9100–9101, 9200–9201을 사용한다. 기본 예제의 두 그룹을 번갈아 장애 대상으로 삼는다. 개발 머신의 다른 서비스와 포트가 겹치면 설정을 복사하고 `scripts/smoke.sh <config> <gateway-origin> <admin-origin>`에 전달한다.
 
+Unix의 전체 테스트에는 `TestNativeCLIShutdownWithActiveAndQueuedRequests`가 포함된다. 실제 CLI를 빌드하고 동적으로 고른 네 포트에서 관리형 워커 두 개를 실행한다. SIGTERM으로 대기 요청 거부, 진행 요청의 유예 내 완료, 유예 만료 시 강제 연결 종료, 런타임·워커 PID·포트 정리를 검사한다. `go test ./cmd/isolatex -run TestNativeCLIShutdown -count=1 -timeout=60s`로 따로 실행할 수 있다. 이 검사는 Windows 콘솔 신호나 Linux 자손 프로세스 종료 검사를 대신하지 않는다. `-race`는 테스트와 워커 helper를 계측하며, 이 검사에서 별도로 빌드한 CLI는 일반 빌드다.
+
 ## 장애·경합 수정
 
 문제를 일으키는 설정과 장애 순서를 재현하는 테스트를 먼저 작성한다. 임의의 긴 sleep보다 채널·잠금·제어된 시계를 사용해 경합 순서를 고정한다. 취소·만료·종료·재시작 후 실행 슬롯과 프로세스가 회수되는지, 다른 그룹의 용량과 PID가 유지되는지 확인한다.
