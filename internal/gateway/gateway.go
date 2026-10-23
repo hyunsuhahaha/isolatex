@@ -1,0 +1,306 @@
+package gateway
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"sort"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"isolatex/internal/breaker"
+	"isolatex/internal/config"
+	"isolatex/internal/pool"
+)
+
+type group struct {
+	name      string
+	cfg       config.Group
+	pool      *pool.Pool
+	gate      *gate
+	transport *http.Transport
+	breaker   *breaker.Breaker
+	metrics   metrics
+}
+
+type Gateway struct {
+	cfg      config.Config
+	groups   []*group
+	admitted chan struct{}
+	draining atomic.Bool
+	log      *slog.Logger
+	registry *prometheus.Registry
+}
+
+func New(c config.Config, pools map[string]*pool.Pool, logger *slog.Logger) *Gateway {
+	g := &Gateway{cfg: c, admitted: make(chan struct{}, c.MaxAdmitted), log: logger, registry: newRegistry()}
+	for name, cfg := range c.Bulkheads {
+		t := &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext, MaxIdleConns: cfg.MaxConcurrent, MaxIdleConnsPerHost: cfg.MaxConcurrent, MaxConnsPerHost: cfg.MaxConcurrent, IdleConnTimeout: 30 * time.Second, ResponseHeaderTimeout: cfg.RequestTimeout, MaxResponseHeaderBytes: 64 << 10, DisableCompression: true}
+		b := &group{name: name, cfg: cfg, pool: pools[name], gate: newGate(cfg.MaxConcurrent, cfg.QueueSize), transport: t, breaker: breaker.New(cfg.CircuitBreaker)}
+		b.registerMetrics(g.registry)
+		g.groups = append(g.groups, b)
+	}
+	sort.Slice(g.groups, func(i, j int) bool {
+		return len(g.groups[i].cfg.Match.PathPrefix) > len(g.groups[j].cfg.Match.PathPrefix)
+	})
+	return g
+}
+
+func (g *Gateway) Drain() {
+	g.draining.Store(true)
+	for _, b := range g.groups {
+		b.gate.close()
+	}
+}
+func (g *Gateway) Close() {
+	g.Drain()
+	for _, b := range g.groups {
+		b.transport.CloseIdleConnections()
+	}
+}
+
+func fail(w http.ResponseWriter, status int, code string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
+}
+
+func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if g.draining.Load() {
+		fail(w, 503, "draining")
+		return
+	}
+	if r.URL.RawPath != "" || !config.ValidPath(r.URL.Path) {
+		fail(w, 400, "invalid_path")
+		return
+	}
+	if r.Method == http.MethodConnect || r.Header.Get("Upgrade") != "" || strings.Contains(r.Header.Get("Accept"), "text/event-stream") || strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+		fail(w, 501, "unsupported_protocol")
+		return
+	}
+	var b *group
+	for _, candidate := range g.groups {
+		prefix := candidate.cfg.Match.PathPrefix
+		if prefix == "/" || r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/") {
+			b = candidate
+			break
+		}
+	}
+	if b == nil {
+		fail(w, 404, "no_route")
+		return
+	}
+	started := time.Now()
+	outcome := "internal_error"
+	defer func() {
+		b.metrics.record(outcome, time.Since(started))
+		g.log.Debug("request", "group", b.name, "outcome", outcome, "duration_ms", time.Since(started).Milliseconds())
+	}()
+	if r.ContentLength > g.cfg.MaxBodyBytes {
+		outcome = "body_too_large"
+		fail(w, 413, outcome)
+		return
+	}
+	if b.breaker.Blocked() {
+		outcome = "circuit_open"
+		fail(w, 503, outcome)
+		return
+	}
+	select {
+	case g.admitted <- struct{}{}:
+		defer func() { <-g.admitted }()
+	default:
+		outcome = "global_full"
+		fail(w, 503, outcome)
+		return
+	}
+	if b.pool.Ready() == 0 {
+		outcome = "no_ready_worker"
+		fail(w, 503, outcome)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), b.cfg.RequestTimeout)
+	defer cancel()
+	queueStart := time.Now()
+	admissionErr := b.gate.acquire(ctx, b.cfg.QueueTimeout)
+	queueOutcome := "assigned"
+	if admissionErr != nil {
+		queueOutcome = admissionErr.Error()
+	}
+	b.metrics.queue.WithLabelValues(queueOutcome).Observe(time.Since(queueStart).Seconds())
+	if err := admissionErr; err != nil {
+		outcome = err.Error()
+		switch {
+		case errors.Is(err, context.Canceled):
+			outcome = "canceled"
+			return
+		case errors.Is(err, context.DeadlineExceeded):
+			outcome = "timeout"
+			fail(w, 504, outcome)
+		default:
+			fail(w, 503, outcome)
+		}
+		return
+	}
+	defer b.gate.release()
+	if err := ctx.Err(); err != nil {
+		outcome = "canceled"
+		if errors.Is(err, context.DeadlineExceeded) {
+			outcome = "timeout"
+			fail(w, 504, outcome)
+		}
+		return
+	}
+	finish, allowed := b.breaker.Allow()
+	if !allowed {
+		outcome = "circuit_open"
+		fail(w, 503, outcome)
+		return
+	}
+	result := breaker.Ignored
+	defer func() { finish(result) }()
+	target, release := b.pool.Pick()
+	if target == nil {
+		outcome = "no_ready_worker"
+		fail(w, 503, outcome)
+		return
+	}
+	defer release()
+	deadline, _ := ctx.Deadline()
+	expired := func() bool { return !time.Now().Before(deadline) || errors.Is(ctx.Err(), context.DeadlineExceeded) }
+	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(deadline)
+	_ = rc.SetWriteDeadline(deadline)
+	defer func() { _ = rc.SetReadDeadline(time.Time{}); _ = rc.SetWriteDeadline(time.Time{}) }()
+	r = r.WithContext(ctx)
+	r.Body = http.MaxBytesReader(w, r.Body, g.cfg.MaxBodyBytes)
+	tracked := &trackingWriter{ResponseWriter: w}
+	outcome = "success"
+	result = breaker.Success
+	proxy := httputil.ReverseProxy{
+		Rewrite:   func(pr *httputil.ProxyRequest) { pr.SetURL(target); pr.SetXForwarded() },
+		Transport: b.transport,
+		ModifyResponse: func(resp *http.Response) error {
+			// A backend can finish concurrently with cancellation. Do not turn a
+			// deadline (or a server read deadline canceling the parent) into 200.
+			if expired() {
+				return context.DeadlineExceeded
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+				result = breaker.Ignored
+				return errors.New("unsupported stream")
+			}
+			if resp.StatusCode >= 500 {
+				result = breaker.Failure
+				outcome = "upstream_5xx"
+			} else if resp.StatusCode >= 400 {
+				outcome = "upstream_4xx"
+			}
+			return nil
+		},
+		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
+			// Allow a small error response after the upstream budget expired.
+			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(250 * time.Millisecond))
+			var tooLarge *http.MaxBytesError
+			switch {
+			case errors.As(err, &tooLarge):
+				result = breaker.Ignored
+				outcome = "body_too_large"
+				fail(w, 413, outcome)
+			case expired():
+				result = breaker.Failure
+				outcome = "timeout"
+				fail(w, 504, outcome)
+			case errors.Is(req.Context().Err(), context.Canceled):
+				result = breaker.Ignored
+				outcome = "canceled"
+			default:
+				if result != breaker.Ignored {
+					result = breaker.Failure
+				}
+				outcome = "upstream_error"
+				fail(w, 502, outcome)
+			}
+		},
+	}
+	defer func() {
+		if v := recover(); v != nil {
+			result = breaker.Failure
+			outcome = "stream_error"
+			if ctx.Err() != nil {
+				outcome = "timeout"
+				if !expired() && errors.Is(ctx.Err(), context.Canceled) {
+					result = breaker.Ignored
+					outcome = "canceled"
+				}
+			}
+			if tracked.writeFailed {
+				result = breaker.Ignored
+			}
+			panic(v)
+		}
+	}()
+	proxy.ServeHTTP(tracked, r)
+	if ctx.Err() != nil && outcome == "success" {
+		outcome = "canceled"
+		result = breaker.Ignored
+		if expired() {
+			outcome = "timeout"
+			result = breaker.Failure
+		}
+	}
+}
+
+type trackingWriter struct {
+	http.ResponseWriter
+	writeFailed bool
+}
+
+func (w *trackingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *trackingWriter) Write(data []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(data)
+	if err != nil {
+		w.writeFailed = true
+	}
+	return n, err
+}
+
+func (g *Gateway) Admin() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200); _, _ = w.Write([]byte("ok\n")) })
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		if g.draining.Load() {
+			fail(w, 503, "draining")
+			return
+		}
+		for _, b := range g.groups {
+			if b.pool.Ready() == 0 {
+				fail(w, 503, "no_ready_worker")
+				return
+			}
+		}
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("ready\n"))
+	})
+	mux.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) {
+		groups := map[string]any{}
+		for _, b := range g.groups {
+			a, q := b.gate.snapshot()
+			groups[b.name] = map[string]any{"active": a, "queued": q, "max_concurrent": b.cfg.MaxConcurrent, "queue_size": b.cfg.QueueSize, "workers": b.pool.Snapshot(), "circuit_breaker": b.breaker.Snapshot()}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"draining": g.draining.Load(), "groups": groups})
+	})
+	mux.Handle("GET /metrics", promhttp.HandlerFor(g.registry, promhttp.HandlerOpts{}))
+	return mux
+}

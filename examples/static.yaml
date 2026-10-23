@@ -1,0 +1,20 @@
+version: 1
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:9090"
+bulkheads:
+  normal:
+    match:
+      path_prefix: /api
+    upstreams: ["http://127.0.0.1:9100"]
+    max_concurrent: 8
+    queue_size: 8
+    queue_timeout: 200ms
+    request_timeout: 2s
+  external:
+    match:
+      path_prefix: /api/erp
+    upstreams: ["http://127.0.0.1:9200"]
+    max_concurrent: 2
+    queue_size: 4
+    queue_timeout: 200ms
+    request_timeout: 5s

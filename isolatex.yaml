@@ -1,0 +1,43 @@
+version: 1
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:9090"
+max_admitted_requests: 32
+max_body_bytes: 1048576
+shutdown_grace: 5s
+bulkheads:
+  normal:
+    match:
+      path_prefix: /api
+    process:
+      command: ["./bin/demo-app"]
+      workers: 2
+      port_start: 9100
+      env:
+        APP_POOL: normal
+    max_concurrent: 8
+    queue_size: 8
+    queue_timeout: 200ms
+    request_timeout: 2s
+    readiness:
+      path: /readyz
+      interval: 100ms
+      timeout: 300ms
+      startup_timeout: 10s
+  external:
+    match:
+      path_prefix: /api/erp
+    process:
+      command: ["./bin/demo-app"]
+      workers: 2
+      port_start: 9200
+      env:
+        APP_POOL: external
+    max_concurrent: 2
+    queue_size: 4
+    queue_timeout: 200ms
+    request_timeout: 5s
+    readiness:
+      path: /readyz
+      interval: 100ms
+      timeout: 300ms
+      startup_timeout: 10s
