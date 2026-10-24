@@ -55,12 +55,29 @@ type Process struct {
 // TasksMax counts Linux threads; ProcessesMax counts Windows processes.
 // CPU uses Linux core bandwidth or Windows Job-relative percent, respectively.
 type Resources struct {
-	MemoryMaxBytes int64  `yaml:"memory_max_bytes"`
-	CPUMillicores  int64  `yaml:"cpu_millicores"`
-	CPUPercent     int64  `yaml:"cpu_percent"`
-	TasksMax       int64  `yaml:"tasks_max"`
-	ProcessesMax   int64  `yaml:"processes_max"`
-	CgroupParent   string `yaml:"cgroup_parent"`
+	MemoryMaxBytes ResourceLimit `yaml:"memory_max_bytes"`
+	CPUMillicores  ResourceLimit `yaml:"cpu_millicores"`
+	CPUPercent     ResourceLimit `yaml:"cpu_percent"`
+	TasksMax       ResourceLimit `yaml:"tasks_max"`
+	ProcessesMax   ResourceLimit `yaml:"processes_max"`
+	CgroupParent   string        `yaml:"cgroup_parent"`
+}
+
+// ResourceLimit rejects YAML float-to-integer coercion, which can silently
+// turn a fractional positive limit into zero (disabled). Node-level decoding
+// preserves the enclosing decoder's strict fields and YAML alias handling.
+type ResourceLimit int64
+
+func (limit *ResourceLimit) UnmarshalYAML(node *yaml.Node) error {
+	if node.Tag != "!!int" {
+		return fmt.Errorf("resource limit at line %d must be a YAML integer", node.Line)
+	}
+	var value int64
+	if err := node.Decode(&value); err != nil {
+		return err
+	}
+	*limit = ResourceLimit(value)
+	return nil
 }
 
 func (r *Resources) Validate() error {

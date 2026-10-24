@@ -3,10 +3,11 @@
 package supervisor
 
 import (
-	"golang.org/x/sys/windows"
 	"os"
 	"runtime"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 func sampleTestCPU() (cpuSample, error) {

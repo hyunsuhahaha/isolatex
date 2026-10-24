@@ -310,3 +310,6 @@ Linux CPU 검사는 systemd가 관리하는 고유한 임시 service에 CPU·메
 음성 대조에서 Windows CPU 설정을 제거하면 실제 Job flags/rate가 0으로 나와 회귀 검사가 실패했다. Linux cpu.max를 max로 바꾸면 실제 quota 불일치로 실패했다. 두 환경에서 제한을 복원한 뒤 실제 CPU 검사를 다시 통과했다. Windows 공개 CLI -check도 CPU 단독·병용을 승인하고 플랫폼 불일치·음수·100 초과·양수 한도 없는 설정은 exit 1로 거부했다.
 
 CPU는 예약이나 순간 점유율·응답 시간의 보장이 아니다. Linux fair-class 및 Windows 상위 Job 비율 계약, 낮은 한도에 따른 시작·요청 지연, 같은 권한의 악성 앱과 DB·I/O 경합의 한계를 [CPU 운영 문서](cpu-limits.md)에 명시했다.
+
+
+CPU 발행 전 설정 검사에서 YAML float→int 묵시 변환을 재현했다. Windows 공개 CLI는 cpu_percent: 0.9와 메모리 한도를 함께 주면 exit 0으로 승인했고 CPU만 0으로 잘려 비활성화됐다. 메모리·태스크·프로세스·두 CPU 필드의 소수값 회귀 검사를 먼저 추가해 기존 파서에서 실패를 확인한 뒤, scalar ResourceLimit 디코더로 정수 태그만 받도록 수정했다. 전체 Resources 디코더를 교체하지 않아 KnownFields와 기존 정수 anchor·merge를 유지하며, float anchor·merge도 거부한다. 기존 정수 설정의 커널 값·JSON 숫자 형태는 유지한다.

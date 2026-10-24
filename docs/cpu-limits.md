@@ -30,7 +30,7 @@ Linux는 250m를 `cpu.max = 25000 100000`으로 설정한다. 2000m는 두 코�
 
 Windows는 코어 수 대신 Job CPU rate를 사용한다. 상위 Job에 CPU rate 제한이 없으면 시스템 CPU 기준이며, 제한이 있는 상위 Job에 중첩되면 바로 위 Job의 CPU 할당에 대한 비율이 된다. 따라서 Linux의 500m와 Windows의 50%는 같은 설정이 아니다. DFSS가 적용되는 Remote Desktop Services 환경 등 API가 지원되지 않는 조건에서는 워커 시작이 실패한다. [Windows CPU rate 계약](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_cpu_rate_control_information)을 따른다.
 
-0·생략은 해당 한도를 비활성화한다. `resources`에는 적어도 하나의 양수 한도가 필요하다. 플랫폼에 맞지 않는 양수 옵션·음수·Windows 100% 초과·Linux 최소 미만·quota 산술 오버플로는 설정 오류다. macOS 등은 현재 CPU 옵션을 지원하지 않는다.
+메모리·생성 수·CPU의 숫자는 YAML 정수로 지정한다. 소수값(`0.9`, `10.0` 포함)·숫자 문자열·불리언·비유한 수는 거부한다. 소수값이 정수 0으로 잘려 제한이 꺼지는 일을 막는다. 정수 anchor·merge는 지원하며 잘못된 소수값을 anchor·merge로 넣어도 거부한다. 0·생략·YAML null은 해당 한도를 비활성화한다. `resources`에는 적어도 하나의 양수 한도가 필요하다. 플랫폼에 맞지 않는 양수 옵션·음수·Windows 100% 초과·Linux 최소 미만·quota 산술 오버플로는 설정 오류다. macOS 등은 현재 CPU 옵션을 지원하지 않는다.
 
 ## 격리와 운영 조건
 

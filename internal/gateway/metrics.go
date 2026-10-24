@@ -23,7 +23,7 @@ func (b *group) workerResources() config.Resources {
 	return config.Resources{}
 }
 
-func (b *group) workerMemoryLimit() int64 { return b.workerResources().MemoryMaxBytes }
+func (b *group) workerMemoryLimit() int64 { return int64(b.workerResources().MemoryMaxBytes) }
 
 func newRegistry() *prometheus.Registry {
 	r := prometheus.NewRegistry()

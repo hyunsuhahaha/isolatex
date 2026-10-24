@@ -6,8 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hyunsuhahaha/isolatex/internal/config"
-	"github.com/hyunsuhahaha/isolatex/internal/gateway"
 	"io"
 	"log/slog"
 	"net"
@@ -22,6 +20,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+	"github.com/hyunsuhahaha/isolatex/internal/gateway"
 )
 
 type cpuSample struct {
@@ -198,6 +199,10 @@ func TestWorkerCPUBudgetContainsDescendantLoad(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if successes.Load() <= started {
+				_ = resp.Body.Close()
+				t.Fatal("protected route made no progress during CPU pressure")
+			}
 			var result cpuResult
 			err = json.NewDecoder(resp.Body).Decode(&result)
 			_ = resp.Body.Close()
@@ -281,10 +286,10 @@ func TestWorkerCPUBudgetContainsDescendantLoad(t *testing.T) {
 			for name, g := range c.Bulkheads {
 				expected := g.Process.Resources
 				actual := status.Groups[name]
-				if actual.Millicores != expected.CPUMillicores || actual.Percent != expected.CPUPercent {
+				if actual.Millicores != int64(expected.CPUMillicores) || actual.Percent != int64(expected.CPUPercent) {
 					t.Fatalf("CPU status mismatch: %+v", actual)
 				}
-				for metric, value := range map[string]int64{"isolatex_worker_cpu_millicores_limit": expected.CPUMillicores, "isolatex_worker_cpu_percent_limit": expected.CPUPercent} {
+				for metric, value := range map[string]int64{"isolatex_worker_cpu_millicores_limit": int64(expected.CPUMillicores), "isolatex_worker_cpu_percent_limit": int64(expected.CPUPercent)} {
 					line := fmt.Sprintf("%s{group=%q} %d\n", metric, name, value)
 					if !strings.Contains(string(metrics), line) {
 						t.Fatalf("missing CPU metric: %s", line)
