@@ -222,6 +222,18 @@ func (f *fixture) protectedPIDs(variant string) []int {
 	return pids
 }
 
+func (f *fixture) faultRestarts(variant string) int {
+	name := "shared"
+	if variant == "C" {
+		name = "fault"
+	}
+	total := 0
+	for _, w := range f.owner.Pools[name].Snapshot() {
+		total += w.Restarts
+	}
+	return total
+}
+
 func (f *fixture) close() {
 	if f.done != nil {
 		if runtime.GOOS == "windows" {

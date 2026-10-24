@@ -176,3 +176,11 @@ Windows Go 1.27.3에서 `go install github.com/hyunsuhahaha/isolatex/cmd/isolate
 Go 모듈 설치는 별도 배포 ldflags·VCS 메타데이터가 없어 `commit`·`built`를 `unknown`으로 출력할 수 있다. 이 경우 모듈 의사 버전에 소스 커밋 접미사가 포함된다. CLI만 설치되며 데모·설정·문서는 포함되지 않는다는 점도 명시했다. 정식 태그나 GitHub 릴리스는 게시하지 않았다.
 
 같은 커밋의 깨끗한 기본 체크아웃에서 `bash scripts/build-dist.sh dev-15c7638 .tools/release-audit-15c7638`로 Linux amd64/arm64·Windows amd64·macOS amd64/arm64의 다섯 묶음을 생성했다. 다섯 SHA-256 검사와 Linux amd64·Windows amd64 실행 파일의 버전·기본 설정 검사가 통과했으며 두 네이티브 실행 파일 모두 전체 커밋 `15c7638dd5af5225a6aee2f41d363e9604bd84b0`을 출력했다. 빌드 중 체크아웃이 변경됐을 가능성이 있는 앞선 `dev-930b401` 묶음은 이 감사의 근거에서 제외했다. ARM Linux·macOS 묶음의 로컬 실행을 주장하지 않는다.
+
+## 2026-10-24 — 크래시 주입의 자동 재전송 방지
+
+기존 비교 도구의 단일 GET 주입은 이미 사용한 연결에서 서버가 요청을 읽고 응답 없이 연결을 닫으면 두 번 실행됐다. 실제 HTTP keep-alive 연결을 준비하고 첫 장애 요청에서 연결을 끊는 회귀 검사가 수정 전에 `one scheduled crash executed 2 times`로 실패했다. Go의 전송 계층 재시도 조건을 확인한 뒤 비교 도구·양방향 smoke의 크래시 주입을 POST로 변경했다. 일반 부하와 지연 부하는 GET을 유지한다.
+
+수정 뒤 자동 재전송 회귀 검사는 Windows에서 100회, Linux race 모드에서 20회 통과했다. 실제 CLI 양방향 smoke에서도 보호 요청 각각 41개 성공·PID 유지와 장애 워커 재시작을 확인했다. 보고서에 크래시 메서드와 장애 대상 풀의 재시작 증가를 기록하며 크래시 시나리오에서 재시작을 관측하지 못하면 실패 처리한다. `sent`는 논리 요청 수이며 TCP 시도나 서버 실행 횟수가 아니다. 이전 GET 원자료는 변경하지 않고 조건을 구분했다.
+
+크래시 요청을 무시하고 항상 200을 반환하는 별도 앱과 실제 CLI를 띄운 음성 대조 검사도 추가했다. 이 앱을 사용한 trial은 보호 요청이 성공해도 장애 실행 미검증 오류로 끝나야 한다. 최종 Windows bench 전체 테스트·vet와 Linux bench 전체 race·vet가 통과했다. 수정 도구로 다시 실행한 POST 크래시 9 trial은 전 단계 생성 누락 0·요청 회계 일치·장애 풀 재시작 증가를 확인했다. C의 장애 단계 보호 요청은 360/360 성공했고 PID가 유지됐다. 새 원자료와 비교표는 `bench/results/README.md`에 있다.
