@@ -36,7 +36,7 @@ bin/compare -scenario crash -out .tools/crash.json
 bin/compare -scenario delay -warmup 30s -baseline 60s -fault 60s -recovery 60s -repeats 5 -out .tools/delay-long.json
 ```
 
-Windows에서는 `.exe` 이름으로 세 실행 파일을 빌드한 뒤 `./bin/compare.exe`를 실행한다. 경로 인자는 PowerShell에서도 `-out .tools/result.json`처럼 별도 인자로 전달한다. 네이티브 Windows 실행은 기존 개발 모드의 직접 자식 종료 범위를 따른다.
+Windows에서는 `.exe` 이름으로 세 실행 파일을 빌드한 뒤 `./bin/compare.exe`를 실행한다. 경로 인자는 PowerShell에서도 `-out .tools/result.json`처럼 별도 인자로 전달한다. 현재 관리형 앱의 수명은 [Windows Job Objects 계약](windows-processes.md)을 따른다. 초기 개발 커밋의 Windows 결과는 당시의 직접 자식 종료 범위로 해석한다.
 
 ## 장애와 부하 생성
 

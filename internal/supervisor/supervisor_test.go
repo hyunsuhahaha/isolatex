@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -28,6 +29,17 @@ func TestWorkerHelper(t *testing.T) {
 	}
 	if os.Getenv("FAIL_START") == "1" {
 		os.Exit(23)
+	}
+	if filename := os.Getenv("ISOLATEX_TEST_CHILD_PID_FILE"); filename != "" {
+		child := exec.Command(os.Args[0], "-test.run=^TestWindowsJobHelper$")
+		child.Env = append(os.Environ(), "ISOLATEX_JOB_TEST_MODE=leaf")
+		child.Stdout, child.Stderr = os.Stdout, os.Stderr
+		if err := child.Start(); err != nil {
+			os.Exit(25)
+		}
+		if err := os.WriteFile(filename, []byte(strconv.Itoa(child.Process.Pid)), 0600); err != nil {
+			os.Exit(26)
+		}
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {

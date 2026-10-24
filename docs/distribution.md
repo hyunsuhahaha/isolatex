@@ -35,6 +35,6 @@ bin/isolatex -config isolatex.yaml
 
 별도 터미널에서 `/a/work`, `/b/work`와 관리 포트의 `/readyz`, `/metrics`를 확인한다. 묶음의 루트가 현재 작업 디렉터리여야 `./bin/demo-app` 명령을 찾을 수 있다. Ctrl+C로 drain·워커 종료를 확인한다.
 
-Windows에서는 압축을 푼 폴더에서 PowerShell로 `./bin/isolatex.exe -version`과 `./bin/isolatex.exe -config isolatex.yaml -check`를 실행한다. 네이티브 Windows는 직접 자식 종료만 지원하는 개발 모드다. Linux 프로세스 그룹 종료와 같은 보장을 주장하지 않는다.
+Windows에서는 압축을 푼 폴더에서 PowerShell로 `./bin/isolatex.exe -version`과 `./bin/isolatex.exe -config isolatex.yaml -check`를 실행한다. 현재 소스의 관리형 워커는 Job Objects로 자손 수명을 관리한다. 이전 개발 스냅샷은 직접 자식 종료만 지원하므로 버전의 커밋과 해당 문서를 확인한다. OS별 종료 방식은 [Windows 프로세스 수명](windows-processes.md)에 구분한다.
 
 수동 GitHub `distribution` 워크플로는 전체 테스트 후 같은 스크립트를 실행하고 체크섬·Linux amd64 버전·설정 검사를 수행한다. 나머지 대상의 크로스 컴파일 성공과 실제 기기 실행 검증은 별도로 기록한다.

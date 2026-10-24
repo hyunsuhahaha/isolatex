@@ -122,22 +122,22 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 		}
 		cmd := exec.Command(g.Process.Command[0], g.Process.Command[1:]...)
 		cmd.Env = workerEnv(g.Process.Env, g.Process.PortStart+index)
-		configureProcess(cmd)
 		writer := &logWriter{s: s, group: name, index: index}
 		cmd.Stdout = writer
 		cmd.Stderr = writer
 		cmd.WaitDelay = time.Second
 		p.Set(index, false, 0, "starting")
-		err := cmd.Start()
+		control, err := startManagedProcess(cmd)
 		if err == nil {
 			pid := cmd.Process.Pid
 			p.Set(index, false, pid, "starting")
 			s.log.Info("worker_started", "group", name, "worker", index, "pid", pid)
 			done := make(chan error, 1)
 			go func() { done <- cmd.Wait() }()
-			err = s.watch(ctx, cmd, done, p, index, g.Readiness)
+			err = s.watch(ctx, cmd, control, done, p, index, g.Readiness)
 			// Also clean remaining descendants after a direct child's exit.
-			signalProcess(cmd, true)
+			control.signal(true)
+			control.close()
 		}
 		p.Set(index, false, 0, "backoff")
 		if ctx.Err() != nil {
@@ -173,7 +173,7 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 	}
 }
 
-func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, done <-chan error, p *pool.Pool, index int, r config.Readiness) error {
+func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, control *processControl, done <-chan error, p *pool.Pool, index int, r config.Readiness) error {
 	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, MaxResponseHeaderBytes: maxReadinessHeaderBytes}
 	defer tr.CloseIdleConnections()
 	client := &http.Client{Transport: tr, Timeout: r.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -188,10 +188,10 @@ func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, done <-chan error
 		case err := <-done:
 			return err
 		case <-ctx.Done():
-			return stopChild(cmd, done)
+			return stopChild(control, done)
 		case <-startupDone:
 			p.Set(index, false, cmd.Process.Pid, "draining")
-			_ = stopChild(cmd, done)
+			_ = stopChild(control, done)
 			return fmt.Errorf("readiness startup timeout")
 		case <-tick.C:
 			origin := p.Snapshot()[index].URL.String()
@@ -212,7 +212,7 @@ func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, done <-chan error
 				default:
 				}
 				if ctx.Err() != nil {
-					return stopChild(cmd, done)
+					return stopChild(control, done)
 				}
 			}
 			before, after := p.Health(index, ok, r.Failures(), r.Successes())
@@ -255,15 +255,15 @@ func (s *Supervisor) monitorStatic(ctx context.Context, name string, index int, 
 	}
 }
 
-func stopChild(cmd *exec.Cmd, done <-chan error) error {
-	signalProcess(cmd, false)
+func stopChild(control *processControl, done <-chan error) error {
+	control.signal(false)
 	t := time.NewTimer(time.Second)
 	defer t.Stop()
 	select {
 	case err := <-done:
 		return err
 	case <-t.C:
-		signalProcess(cmd, true)
+		control.signal(true)
 		return <-done
 	}
 }

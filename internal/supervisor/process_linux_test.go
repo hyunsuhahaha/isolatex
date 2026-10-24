@@ -15,15 +15,15 @@ import (
 
 func TestLinuxStopTerminatesDescendants(t *testing.T) {
 	cmd := exec.Command("sh", "-c", `sleep 60 & echo $!; wait`)
-	configureProcess(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = cmd.Start(); err != nil {
+	control, err := startManagedProcess(cmd)
+	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { signalProcess(cmd, true) })
+	t.Cleanup(func() { control.signal(true); control.close() })
 	scanner := bufio.NewScanner(stdout)
 	if !scanner.Scan() {
 		_ = cmd.Process.Kill()
@@ -44,7 +44,7 @@ func TestLinuxStopTerminatesDescendants(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
-	_ = stopChild(cmd, done)
+	_ = stopChild(control, done)
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		data, err := os.ReadFile("/proc/" + strconv.Itoa(child) + "/stat")

@@ -190,3 +190,15 @@ Go 모듈 설치는 별도 배포 ldflags·VCS 메타데이터가 없어 `commit
 관리형·외부 워커가 준비 상태 경로에서 1MiB 헤더와 HTTP 200을 보내는 두 검사에서 기존 Supervisor는 실패 없이 Ready를 유지했다. 준비 검사 transport에 64KiB 헤더 한도를 적용해 초과 응답을 실패로 집계하도록 수정했다. 이 한도는 요청 전달 transport의 기존 헤더 한도와 별개로 감시 경로에도 적용된다.
 
 새 검사는 작은 응답으로 준비 완료 후 큰 헤더 주입·실패 임계치에 따른 제외·작은 응답으로 회복을 확인한다. 관리형 워커의 PID와 재시작 수가 유지되며 다른 그룹의 PID·Ready·건강 검사 진행도 유지된다. Windows 두 회귀 검사 10회 반복과 전체 supervisor 테스트·vet, Linux 전체 supervisor race·vet가 통과했다. 워커 메모리 전체에 대한 상한이나 호스트 OOM 방지를 입증하는 검사는 아니다.
+
+`ce6206a`의 7개 구성, push·PR 합계 14개 원격 check가 모두 통과한 뒤 기본 브랜치에 병합했다.
+
+## 2026-10-24 — Windows 관리형 워커의 자손 수명
+
+이전 직접 자식 종료 방식을 같은 검사에 넣으면 부모만 종료되고 자손 프로세스 핸들이 `WAIT_TIMEOUT(258)`으로 살아 있는 실패를 재현했다. 워커별 KILL_ON_JOB_CLOSE Job과 정지 생성·등록·재개를 도입했다. 구현 중 소유자를 워커 Job 등록 전에 종료하면 정지 자식이 남는 경합도 재현해, 최초 관리형 생성 전 소유자 자신이 속하는 루트 Job을 추가했다. 루트 핸들은 프로세스 수명 동안 하나를 유지하며 OS 종료가 닫는다.
+
+네이티브 Windows 검사는 즉시 자손 생성·해당 트리 종료·별도 워커 유지, 부모 선행 종료 후 Job 닫기, 소유자의 정리 없는 정상 종료와 TerminateProcess, 워커 Job 등록 전 정지 자식 회수를 확인한다. 실제 Supervisor 검사에서는 stdout/stderr를 상속한 자손이 있는 워커를 HTTP POST로 크래시시키고 이전 자손 제거·대체 PID와 자손 생성·다른 그룹의 PID·Ready·재시작 수 유지·Stop 후 회수를 확인했다. 검증과 실패 정리는 재사용 가능한 PID 대신 미리 연 프로세스 핸들을 사용한다.
+
+Windows Go 1.27.3 새 검사 10회 반복과 해당 패키지의 checkptr=2 검사 10회·vet, Go 1.25.0 Windows supervisor 전체 검사가 통과했다. Windows 전체 테스트·vet와 Linux 전체 race·vet도 통과했다. Windows 모듈·호출 수준 govulncheck는 모두 미검출이었다. Windows API로 uintptr를 전달하는 Job 설정 버퍼는 runtime.Pinner로 고정하며 최소 Go 버전과 의존성 버전은 유지했다.
+
+Windows의 종료 범위·Job 중첩 등록 실패·강제 종료 hook 제한·WMI/외부 서비스 자손 제외는 `windows-processes.md`와 SECURITY.md에 명시했다. CPU·메모리 quota 또는 악성 코드 샌드박스를 주장하지 않는다. macOS 등 나머지 OS의 직접 자식 범위는 이 변경으로 확장되지 않는다.
