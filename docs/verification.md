@@ -295,3 +295,18 @@ Windows·Linux Go 1.27.3 전체 테스트와 vet, Linux 전체 race를 통과했
 음성 대조에서는 Windows 활성 프로세스 한도를 잠시 제거하고 Linux pids 한도를 충분히 크게 바꿨다. 두 환경 모두 48개 생성이 성공하여 회귀 테스트가 `descendant budget not enforced`로 실패했다. 원래 제한을 복원한 뒤 다시 검사했다.
 
 CPU·파일 디스크립터·DB 연결·Windows 스레드 수 상한은 이번 변경 범위가 아니다. 같은 사용자 권한의 앱을 대상으로 하는 운영상 격벽이며 악성 코드 샌드박스가 아니다. [설정과 운영 계약](task-limits.md)을 참고한다.
+
+
+## 2026-10-24 — 워커·자손 CPU 상한
+
+Linux `process.resources.cpu_millicores`와 Windows `cpu_percent`를 추가했다. Linux는 100ms 주기의 cpu.max를 코어 기준으로 설정하며, Windows는 워커 Job에 ENABLE·HARD_CAP을 적용한다. 두 단위를 혼용하지 않고 플랫폼 불일치·음수·Windows 100 초과·Linux 10m 미만과 quota 계산 오버플로를 Decode에서 거부한다. CPU 단독 또는 메모리·생성 수 한도와 병용할 수 있다. 원래 실행 전 cgroup FD·정지 Job 등록 절차와 실패 시 실행 차단을 유지한다.
+
+실제 Supervisor·Gateway의 부모와 자손이 각각 유한한 시간 동안 CPU를 소모하도록 했다. CPU 무제한 대조·단독·병용을 검사하며, Linux는 같은 cgroup의 정확한 quota·실제 cpu.stat throttling 증가·합산 CPU 시간, Windows는 두 프로세스의 실제 Job hard cap·누적 프로세스 수·합산 CPU 시간을 확인한다. 부하 동안 보호 경로의 연속 HTTP 성공과 두 워커의 PID·재시작 0을 유지한다. 상태 API와 지표의 설정값도 확인했다. 계측 허용 오차를 둔 기능 검사이며 성능 향상율·보호 경로의 SLO를 주장하지 않는다.
+
+Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet를 통과했다. Windows Go 1.25.0의 설정·실제 CPU 검사, Linux Go 1.25.0의 별도 위임 CPU race 2회도 통과했다. 기존 메모리·태스크·스레드·컨트롤러 부재 검사를 Linux에서 race 3회 반복해 통과했다. CPU controller 미위임 시 앱 실행 흔적과 새 cgroup이 남지 않는지도 검사한다.
+
+Linux CPU 검사는 systemd가 관리하는 고유한 임시 service에 CPU·메모리·태스크 컨트롤러를 위임해 일반 사용자로 실행한다. 전역 cgroup 컨트롤러 파일을 직접 수정하지 않고 종료 시 정확히 해당 unit을 회수한다. CPU 검사는 별도 scripts/check-cpu-linux.sh와 Linux CI 단계에서 실행하며 일반 테스트의 skip에 의존하지 않는다.
+
+음성 대조에서 Windows CPU 설정을 제거하면 실제 Job flags/rate가 0으로 나와 회귀 검사가 실패했다. Linux cpu.max를 max로 바꾸면 실제 quota 불일치로 실패했다. 두 환경에서 제한을 복원한 뒤 실제 CPU 검사를 다시 통과했다. Windows 공개 CLI -check도 CPU 단독·병용을 승인하고 플랫폼 불일치·음수·100 초과·양수 한도 없는 설정은 exit 1로 거부했다.
+
+CPU는 예약이나 순간 점유율·응답 시간의 보장이 아니다. Linux fair-class 및 Windows 상위 Job 비율 계약, 낮은 한도에 따른 시작·요청 지연, 같은 권한의 악성 앱과 DB·I/O 경합의 한계를 [CPU 운영 문서](cpu-limits.md)에 명시했다.

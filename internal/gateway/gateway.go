@@ -307,7 +307,7 @@ func (g *Gateway) Admin() http.Handler {
 		groups := map[string]any{}
 		for _, b := range g.groups {
 			a, q := b.gate.snapshot()
-			groups[b.name] = map[string]any{"active": a, "queued": q, "max_concurrent": b.cfg.MaxConcurrent, "queue_size": b.cfg.QueueSize, "worker_memory_max_bytes": b.workerMemoryLimit(), "worker_tasks_max": b.workerResources().TasksMax, "worker_processes_max": b.workerResources().ProcessesMax, "workers": b.pool.Snapshot(), "circuit_breaker": b.breaker.Snapshot()}
+			groups[b.name] = map[string]any{"active": a, "queued": q, "max_concurrent": b.cfg.MaxConcurrent, "queue_size": b.cfg.QueueSize, "worker_memory_max_bytes": b.workerMemoryLimit(), "worker_tasks_max": b.workerResources().TasksMax, "worker_cpu_millicores": b.workerResources().CPUMillicores, "worker_cpu_percent": b.workerResources().CPUPercent, "worker_processes_max": b.workerResources().ProcessesMax, "workers": b.pool.Snapshot(), "circuit_breaker": b.breaker.Snapshot()}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"runtime_pid": os.Getpid(), "draining": g.draining.Load(), "groups": groups})

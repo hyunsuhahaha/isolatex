@@ -53,8 +53,11 @@ type Process struct {
 
 // Resources apply to one managed worker and its descendants, not the group.
 // TasksMax counts Linux threads; ProcessesMax counts Windows processes.
+// CPU uses Linux core bandwidth or Windows Job-relative percent, respectively.
 type Resources struct {
 	MemoryMaxBytes int64  `yaml:"memory_max_bytes"`
+	CPUMillicores  int64  `yaml:"cpu_millicores"`
+	CPUPercent     int64  `yaml:"cpu_percent"`
 	TasksMax       int64  `yaml:"tasks_max"`
 	ProcessesMax   int64  `yaml:"processes_max"`
 	CgroupParent   string `yaml:"cgroup_parent"`
@@ -67,11 +70,17 @@ func (r *Resources) Validate() error {
 	if r.MemoryMaxBytes < 0 || uint64(r.MemoryMaxBytes) > uint64(^uintptr(0)) || r.TasksMax < 0 || r.ProcessesMax < 0 || r.ProcessesMax > math.MaxUint32 {
 		return fmt.Errorf("resources limits must be nonnegative and representable")
 	}
-	if r.MemoryMaxBytes == 0 && r.TasksMax == 0 && r.ProcessesMax == 0 {
+	if r.CPUMillicores < 0 || (r.CPUMillicores > 0 && r.CPUMillicores < 10) || r.CPUMillicores > math.MaxInt64/100 || r.CPUPercent < 0 || r.CPUPercent > 100 {
+		return fmt.Errorf("resources requires cpu_millicores >= 10 when enabled, representable quota, and cpu_percent in 0..100")
+	}
+	if r.MemoryMaxBytes == 0 && r.TasksMax == 0 && r.ProcessesMax == 0 && r.CPUMillicores == 0 && r.CPUPercent == 0 {
 		return fmt.Errorf("resources requires at least one positive limit")
 	}
 	switch runtime.GOOS {
 	case "windows":
+		if r.CPUMillicores != 0 {
+			return fmt.Errorf("resources.cpu_millicores is Linux-only; cpu_percent uses Windows Job CPU rate")
+		}
 		if r.TasksMax != 0 {
 			return fmt.Errorf("resources.tasks_max is Linux-only; processes_max counts Windows processes")
 		}
@@ -79,6 +88,9 @@ func (r *Resources) Validate() error {
 			return fmt.Errorf("resources.cgroup_parent is Linux-only")
 		}
 	case "linux":
+		if r.CPUPercent != 0 {
+			return fmt.Errorf("resources.cpu_percent is Windows-only; cpu_millicores uses Linux core bandwidth")
+		}
 		if r.ProcessesMax != 0 {
 			return fmt.Errorf("resources.processes_max is Windows-only; tasks_max counts Linux threads")
 		}

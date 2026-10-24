@@ -50,6 +50,10 @@ func newWorkerCgroup(resources *config.Resources) (*workerCgroup, error) {
 	if resources.TasksMax > 0 {
 		settings = append(settings, setting{"pids.max", strconv.FormatInt(resources.TasksMax, 10)})
 	}
+	if resources.CPUMillicores > 0 {
+		// Fixed 100ms period: 1000 millicores means one full logical CPU.
+		settings = append(settings, setting{"cpu.max", strconv.FormatInt(resources.CPUMillicores*100, 10) + " 100000"})
+	}
 	for _, setting := range settings {
 		if err := os.WriteFile(filepath.Join(path, setting.name), []byte(setting.value), 0600); err != nil {
 			return fail(fmt.Errorf("configure %s: %w", setting.name, err))

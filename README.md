@@ -13,7 +13,7 @@
 
 공유 게이트웨이·호스트·DB는 여전히 장애 전파 경로가 될 수 있다. 현재 보장과 검증 결과는 이 경계를 기준으로 설명한다.
 
-현재 **v0.4 개발 중**이다. 경로별 실행·대기 제한, 프로세스 관리, rolling-window Circuit Breaker, 주기적 Health Check와 복구, Prometheus 관측을 구현했다. Linux cgroup v2와 Windows Job Objects로 선택적 워커 트리 메모리 상한을 적용한다. [메모리 격벽 설정](docs/memory-limits.md) · [태스크·프로세스 생성 한도](docs/task-limits.md) · [자원 조건을 맞춘 비교 실험](docs/experiments.md)
+현재 **v0.4 개발 중**이다. 경로별 실행·대기 제한, 프로세스 관리, rolling-window Circuit Breaker, 주기적 Health Check와 복구, Prometheus 관측을 구현했다. Linux cgroup v2와 Windows Job Objects로 선택적 워커 트리 메모리 상한을 적용한다. [메모리 격벽 설정](docs/memory-limits.md) · [태스크·프로세스 생성 한도](docs/task-limits.md) · [CPU 격벽](docs/cpu-limits.md) · [자원 조건을 맞춘 비교 실험](docs/experiments.md)
 
 ## 실행
 
@@ -47,7 +47,7 @@ go build -o bin/isolatex.exe ./cmd/isolatex
 .\bin\isolatex.exe -config isolatex.yaml
 ```
 
-Linux·macOS에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 보내고 직접 자식을 수거한다. Windows에서는 워커별 Job Object로 자손 수명을 관리하고, 런타임 소유자 Job이 생성 중 또는 런타임 종료 시 남는 자식을 회수한다. HTTP drain 후 Windows의 Job 종료는 강제 종료이며 앱 종료 hook 실행을 보장하지 않는다. 이외 OS는 직접 자식 종료 범위다. Linux·Windows의 선택적 메모리 예산은 워커 하나와 자손 전체에 적용하며 CPU·DB 한도는 설정하지 않는다. [Unix 프로세스 그룹](docs/process-groups.md) · [Windows 프로세스 수명](docs/windows-processes.md) · [메모리 예산](docs/memory-limits.md)
+Linux·macOS에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 보내고 직접 자식을 수거한다. Windows에서는 워커별 Job Object로 자손 수명을 관리하고, 런타임 소유자 Job이 생성 중 또는 런타임 종료 시 남는 자식을 회수한다. HTTP drain 후 Windows의 Job 종료는 강제 종료이며 앱 종료 hook 실행을 보장하지 않는다. 이외 OS는 직접 자식 종료 범위다. Linux·Windows의 선택적 메모리 예산은 워커 하나와 자손 전체에 적용한다. 선택적 CPU 상한도 지원하며 공유 DB 한도는 설정하지 않는다. [Unix 프로세스 그룹](docs/process-groups.md) · [Windows 프로세스 수명](docs/windows-processes.md) · [메모리 예산](docs/memory-limits.md)
 
 관리 포트는 `127.0.0.1:9090`, 게이트웨이는 `127.0.0.1:8080`이다. Ctrl+C 또는 SIGTERM으로 요청을 drain한 후 워커를 종료한다. `-debug`는 요청별 그룹·결과·소요 시간 로그를 추가한다. 요청 URL, query와 헤더는 런타임 요청 로그에 기록하지 않는다. 워커 stdout/stderr는 그대로 전달되므로 앱 로그의 비밀값은 앱에서 제거해야 한다.
 
