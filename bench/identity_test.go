@@ -34,10 +34,16 @@ func TestSmokeChecksRuntimeIdentityBeforeInjectingFaults(t *testing.T) {
 	for _, mode := range []string{"unverified_control", "wrong_runtime", "verified_runtime"} {
 		t.Run(mode, func(t *testing.T) {
 			var appRequests, crashes atomic.Int32
+			var delayedDone atomic.Bool
+			var drainObservations atomic.Int32
 			pools := map[string]*pool.Pool{}
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				appRequests.Add(1)
 				if r.URL.Query().Get("crash") == "1" {
+					if drainObservations.Load() < 2 {
+						w.WriteHeader(http.StatusServiceUnavailable)
+						return
+					}
 					count := crashes.Add(1)
 					// Model a replacement in the control plane without terminating
 					// the test process that owns this HTTP fixture.
@@ -48,6 +54,7 @@ func TestSmokeChecksRuntimeIdentityBeforeInjectingFaults(t *testing.T) {
 				}
 				if delay, err := time.ParseDuration(r.URL.Query().Get("delay")); err == nil {
 					time.Sleep(delay)
+					delayedDone.Store(true)
 				}
 				_, _ = io.WriteString(w, "ok")
 			}))
@@ -68,7 +75,29 @@ func TestSmokeChecksRuntimeIdentityBeforeInjectingFaults(t *testing.T) {
 			}
 			g := gateway.New(c, pools, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			defer g.Close()
-			public, admin := httptest.NewServer(g), httptest.NewServer(g.Admin())
+			adminHandler := g.Admin()
+			admin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/status" || !delayedDone.Load() {
+					adminHandler.ServeHTTP(w, r)
+					return
+				}
+				// Receiving response EOF need not synchronize the server's final
+				// slot accounting. Force a non-drained observation before recovery.
+				recorder := httptest.NewRecorder()
+				adminHandler.ServeHTTP(recorder, r)
+				var current status
+				if err := json.Unmarshal(recorder.Body.Bytes(), &current); err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				if drainObservations.Add(1) == 1 {
+					group := current.Groups["beta"]
+					group.Active = 1
+					current.Groups["beta"] = group
+				}
+				_ = json.NewEncoder(w).Encode(current)
+			}))
+			public := httptest.NewServer(g)
 			defer public.Close()
 			defer admin.Close()
 			args := []string{"-url", public.URL, "-admin", admin.URL}

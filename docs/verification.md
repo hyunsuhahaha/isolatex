@@ -426,3 +426,7 @@ Supervisor는 첫 정리 실패에서 이미 해당 슬롯의 교체를 차단�
 단조 시각 적용 후 TCP 회귀는 Windows 5회와 Linux race 5회 통과했고, 실제 HAProxy를 포함한 Linux 전체 race·vet도 통과했다.
 
 공개 커밋 b54e28a763d40dd05ba17fa0fe3486b6ec7c31d8을 Windows·Linux에서 각각 go install하고 v0.0.0-20261024201714-b54e28a763d4 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
+
+원격 CI에서 smoke의 크래시 단계가 502 대신 503을 받는 기존 경합도 발견했다. 부하 클라이언트의 EOF 완료 뒤에도 서버의 마지막 슬롯 반환이 남을 수 있으므로, 크래시 POST 전에 관리 status의 해당 그룹 Active와 Queued가 모두 0인지 최대 8초 기다리도록 했다. 매 snapshot의 런타임 PID 검사와 크래시 POST의 502 요구는 유지하며 장애 요청을 재전송하지 않는다. 실제 Gateway·별도 smoke CLI 검사에서 첫 회수 관측을 강제로 Active=1로 남기는 조건을 추가해 수정 전 unverified/verified 모드 모두 503으로 실패하는 것을 재현했다. 수정 후 Windows 5회가 통과했다.
+
+회수 확인을 추가한 smoke 검사는 Linux race 모드도 5회 통과했고 양쪽 bench vet가 통과했다.
