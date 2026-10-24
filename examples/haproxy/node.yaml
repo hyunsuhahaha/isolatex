@@ -1,0 +1,31 @@
+version: 1
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:9090"
+# Expose only the minimal routing observations on the data listener.
+routing_probe_prefix: /_isolatex/route
+max_admitted_requests: 4
+bulkheads:
+  alpha:
+    match: {path_prefix: /a}
+    process:
+      command: ["./bin/demo-app"]
+      workers: 1
+      port_start: 9100
+      env: {APP_POOL: alpha}
+    max_concurrent: 1
+    queue_size: 1
+    queue_timeout: 100ms
+    request_timeout: 5s
+    readiness: {path: /readyz, interval: 500ms, timeout: 200ms, startup_timeout: 10s}
+  beta:
+    match: {path_prefix: /b}
+    process:
+      command: ["./bin/demo-app"]
+      workers: 1
+      port_start: 9200
+      env: {APP_POOL: beta}
+    max_concurrent: 1
+    queue_size: 1
+    queue_timeout: 100ms
+    request_timeout: 5s
+    readiness: {path: /readyz, interval: 500ms, timeout: 200ms, startup_timeout: 10s}

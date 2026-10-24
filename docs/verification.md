@@ -345,3 +345,18 @@ Start는 포트 확인과 모든 워커·정적 readiness 감시의 등록을 �
 로컬 검증: Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet가 통과했다. 별도 연결 운영 문서에 기본값, backlog 대기, HTTP 503 미보장, FD 여유와 남는 공용 경계를 기록했다.
 
 Windows 최소 Go 1.25.0의 실제 CLI·리스너·설정 검사도 3회 통과했다. 공개 커밋 e225acbb1cc213a5db12f9092ecaad7e0c9deb58을 Windows·Linux에서 각각 go install했고, v0.0.0-20261024135231-e225acbb1cc2 버전과 max_connections가 포함된 기본 설정의 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
+
+
+## 서버별 그룹 상태와 실제 HAProxy 분산 (2026-10-24)
+
+관리 /routingz/{group}는 워커 준비·차단기·실행/대기 여유를 관측해 200/503으로 분산 후보 여부를 반환한다. 기존 /readyz/{group}는 포화 때문에 실패로 바꾸지 않는다. 공용 노출은 routing_probe_prefix를 명시한 경우에만 켜고 PID·명령·내부 주소를 제외한다. 조회는 슬롯을 예약하거나 Half-open 시험을 소비하지 않으며, 준비·용량 상태는 서버별 표본이다.
+
+실제 HAProxy 2.8.30을 별도 프로세스로 실행하고 배포하는 설정 파일을 그대로 사용했다. 두 노드의 HTTP gateway·Supervisor static readiness 감시와 alpha HTTP upstream 수 1개/2개를 구성했다. A alpha의 실행 1개·대기 1개를 채우면 alpha/node_a만 DOWN이 되고 /a POST는 B로만 전달되며 /b POST는 A·B 모두에서 응답했다. 포화 회수 → A alpha readiness 실패 → 양쪽 alpha 실패 → A만 회복도 확인했다. 모든 alpha가 불가하면 /a만 503이고 beta는 계속 A·B에서 응답했다. HAProxy runtime 상태와 실제 POST 목적지를 함께 검사했다.
+
+Linux race 연동 3회가 통과했다. alpha가 beta 상태를 검사하도록 설정을 의도적으로 바꾼 대조 검사에서는 alpha/node_a가 계속 UP으로 남아 routing state did not converge로 실패했다. 복구한 설정은 통과했다. 최초 설정 검증은 HAProxy 2.8에서 지원하지 않는 init-state 옵션을 발견해 실패했고, 해당 옵션을 제거했다. 첫 검사 이전·변화 감지 이전의 창과 표본/실제 수용 사이 경쟁은 운영 문서에 명시했다.
+
+Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet, Windows 최소 Go 1.25.0의 routing/config 검사 5회가 통과했다. 조회 기본 비활성화, prefix 충돌·catch-all 예약, 인코딩 경로 거부, HEAD/405/404, no-store, 포화/준비 상태 분리와 Half-open 시험 비소비도 검사한다. Linux stable CI에 실제 HAProxy 설치·race 연동 2회를 추가했다. 이 연동은 HTTP 서버 상태 분산 검사이며 OS 워커 생성과 장시간 성능 검증은 기존 별도 검사 범위다.
+
+추가 검토에서 조회 설정이 빠진 catch-all 앱의 200을 앞단이 정상으로 오인하지 않도록 IsolateX-Routing: v1:<group> 헤더를 반환하고, HAProxy가 200과 해당 헤더를 모두 검사하게 했다. 연동 마지막 단계에서 일반 앱의 200 fallback을 주입하고 해당 노드를 alpha·beta 모두에서 제외하는 검사도 추가했다. 이는 응답 형식 식별이며 인증이 아니다.
+
+헤더 식별 보강 후 실제 HAProxy 2.8.30 race 연동도 3회 통과했다. 공개 커밋 134443c3abd0df5d785de83a9c3a0c5989eeee42를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024145930-134443c3abd0 버전과 routing_probe_prefix가 포함된 HAProxy 노드 설정의 -check 성공을 확인했다. README 설치 고정값을 이 스냅샷으로 갱신했다.

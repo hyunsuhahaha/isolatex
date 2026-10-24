@@ -21,10 +21,10 @@ Go 1.25 이상이 필요하다. 저장소 루트에서 실행한다. HTTP 처리
 
 Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프로젝트가 보안 수정을 지원하는 버전의 최신 패치로 빌드한다. Windows 의존성의 알려진 취약점 수정을 위해 최소 버전을 기존 1.23에서 올렸다. [보안 범위와 검사](SECURITY.md)
 
-Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 2026-10-24에 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 스냅샷이다.
+Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 개발 스냅샷이다.
 
 ```sh
-go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@e225acbb1cc213a5db12f9092ecaad7e0c9deb58
+go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@134443c3abd0df5d785de83a9c3a0c5989eeee42
 isolatex -version
 ```
 
@@ -89,6 +89,7 @@ go run ./bench -healthy-group beta -healthy-path /b/work -fault-group alpha -fau
 
 관리형 앱은 foreground로 실행한다. 스스로 daemonize하거나 프로세스 그룹을 벗어나는 명령은 일반 관리형 워커의 수명 계약을 따르지 않는다.
 
+- 여러 서버의 워커 상태·포화 여부는 관리 `/routingz/{group}`에서 따로 조회한다. 원격 앞단에는 선택적 `routing_probe_prefix`로 최소 상태만 노출하고, 그룹별 서버 후보를 분리한다. [실행 가능한 HAProxy 예제와 계약](docs/multi-server-routing.md)
 - `max_connections`는 공용 리스너가 수용한 TCP 연결 수의 상한이며 기본값은 1024다. 헤더 수신 전·keep-alive 유휴 연결도 포함한다. 관리 리스너는 별도 64개 상한을 사용한다. 포화 시 새 연결은 OS backlog에서 대기하며 HTTP 503을 보장하지 않는다. 경로 분류 전의 공용 한도이므로 그룹별 연결 예약은 아니다. [연결 경계와 운영 설정](docs/connection-limits.md)
 - `workers`는 프로세스 개수, `max_concurrent`는 그룹 전체의 전달 중 요청 수다. `queue_size: 0`이면 즉시 수용하거나 거부한다.
 - 모든 그룹의 `max_concurrent + queue_size` 합은 `max_admitted_requests` 이하여야 한다. 이 한도는 시작 시 용량 예약을 검증하는 상한이다. 요청마다 전역 슬롯을 선착순으로 경쟁하지 않으며, 그룹의 남는 용량을 다른 그룹이 빌리지 않는다. 기존에 합계보다 작은 전역 한도를 사용했다면 전역 한도를 올리거나 그룹별 한도를 줄여야 한다. 해당 설정은 이제 시작 오류다.

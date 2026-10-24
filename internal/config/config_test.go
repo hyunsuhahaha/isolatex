@@ -37,6 +37,20 @@ func TestConnectionBudgetValidation(t *testing.T) {
 	}
 }
 
+func TestRoutingProbePrefixValidation(t *testing.T) {
+	for _, prefix := range []string{"/", "/probe/", "probe", "/probe/../route", "/api", "/api/probe", "/api%2fprobe"} {
+		if _, err := Decode(strings.NewReader(validConfig + "routing_probe_prefix: " + prefix + "\n")); err == nil {
+			t.Fatalf("invalid or overlapping probe prefix accepted: %s", prefix)
+		}
+	}
+	for _, input := range []string{validConfig, strings.Replace(validConfig, "path_prefix: /api", "path_prefix: /", 1)} {
+		c, err := Decode(strings.NewReader(input + "routing_probe_prefix: /_isolatex/route\n"))
+		if err != nil || c.RoutingProbePrefix != "/_isolatex/route" {
+			t.Fatalf("explicit reserved probe prefix: %+v, %v", c, err)
+		}
+	}
+}
+
 func TestDecodeStrictValidation(t *testing.T) {
 	if _, err := Decode(strings.NewReader(validConfig)); err != nil {
 		t.Fatal(err)

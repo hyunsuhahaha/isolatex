@@ -20,14 +20,15 @@ import (
 )
 
 type Config struct {
-	Version        int              `yaml:"version"`
-	Listen         string           `yaml:"listen"`
-	AdminListen    string           `yaml:"admin_listen"`
-	MaxAdmitted    int              `yaml:"max_admitted_requests"`
-	MaxConnections ResourceLimit    `yaml:"max_connections,omitempty"`
-	MaxBodyBytes   int64            `yaml:"max_body_bytes"`
-	ShutdownGrace  time.Duration    `yaml:"shutdown_grace"`
-	Bulkheads      map[string]Group `yaml:"bulkheads"`
+	RoutingProbePrefix string           `yaml:"routing_probe_prefix,omitempty"`
+	Version            int              `yaml:"version"`
+	Listen             string           `yaml:"listen"`
+	AdminListen        string           `yaml:"admin_listen"`
+	MaxAdmitted        int              `yaml:"max_admitted_requests"`
+	MaxConnections     ResourceLimit    `yaml:"max_connections,omitempty"`
+	MaxBodyBytes       int64            `yaml:"max_body_bytes"`
+	ShutdownGrace      time.Duration    `yaml:"shutdown_grace"`
+	Bulkheads          map[string]Group `yaml:"bulkheads"`
 }
 
 type Group struct {
@@ -215,6 +216,9 @@ func (c Config) Validate() error {
 		return fmt.Errorf("at least one bulkhead is required")
 	}
 	prefixes := map[string]bool{}
+	if prefix := c.RoutingProbePrefix; prefix != "" && (!ValidPath(prefix) || prefix == "/" || strings.HasSuffix(prefix, "/")) {
+		return fmt.Errorf("routing_probe_prefix requires a clean non-root path without a trailing slash")
+	}
 	remaining := c.MaxAdmitted
 	for name, g := range c.Bulkheads {
 		if !groupName.MatchString(name) {
@@ -225,6 +229,9 @@ func (c Config) Validate() error {
 			return fmt.Errorf("%s: invalid or duplicate path_prefix", name)
 		}
 		prefixes[prefix] = true
+		if probe := c.RoutingProbePrefix; probe != "" && prefix != "/" && (prefix == probe || strings.HasPrefix(prefix, probe+"/") || strings.HasPrefix(probe, prefix+"/")) {
+			return fmt.Errorf("%s: path_prefix overlaps routing_probe_prefix", name)
+		}
 		if g.MaxConcurrent < 1 || g.QueueSize < 0 || g.QueueTimeout <= 0 || g.RequestTimeout <= 0 {
 			return fmt.Errorf("%s: invalid request/queue limits", name)
 		}
