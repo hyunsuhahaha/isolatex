@@ -386,3 +386,5 @@ upstream 응답·경로 미일치·공용 라우팅 점검·준비 워커 없음
 추가 keep-alive 검사는 그룹 응답과 라우팅 점검 응답의 이전 기한이 지난 뒤 같은 연결을 재사용해 각각 새 요청이 200으로 완료되는지 확인한다. Windows 3회와 Linux race 5회가 통과했다.
 
 이는 의도적으로 작은 버퍼를 사용한 기능 회귀 검사이며 클라이언트별 공정성이나 장시간 부하 성능을 주장하지 않는다. 운영 계약과 writer 포함 사용 시 ResponseController 지원 조건은 connection-limits 문서에 기록했다.
+
+공개 커밋 bf2ece45ef0bd5b9eb895d40eb689da210a39bfb를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024182157-bf2ece45ef0b 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.

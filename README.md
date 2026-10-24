@@ -24,7 +24,7 @@ Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프�
 Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 개발 스냅샷이다.
 
 ```sh
-go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@fe2b6d6b89a4eb116678c06e79a2622730d59785
+go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@bf2ece45ef0bd5b9eb895d40eb689da210a39bfb
 isolatex -version
 ```
 
