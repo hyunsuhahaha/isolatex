@@ -48,19 +48,23 @@ func ensureOwnerJob() error {
 }
 
 func newLifetimeJob() (windows.Handle, error) {
-	return newWorkerJob(0)
+	return newWorkerJob(nil)
 }
 
-func newWorkerJob(memoryMaxBytes int64) (windows.Handle, error) {
+func newWorkerJob(resources *config.Resources) (windows.Handle, error) {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return 0, fmt.Errorf("create lifetime job: %w", err)
 	}
 	limits := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
 	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-	if memoryMaxBytes > 0 {
+	if resources != nil && resources.MemoryMaxBytes > 0 {
 		limits.BasicLimitInformation.LimitFlags |= windows.JOB_OBJECT_LIMIT_JOB_MEMORY
-		limits.JobMemoryLimit = uintptr(memoryMaxBytes)
+		limits.JobMemoryLimit = uintptr(resources.MemoryMaxBytes)
+	}
+	if resources != nil && resources.ProcessesMax > 0 {
+		limits.BasicLimitInformation.LimitFlags |= windows.JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+		limits.BasicLimitInformation.ActiveProcessLimit = uint32(resources.ProcessesMax)
 	}
 	// This API exposes its input as uintptr rather than a typed pointer.
 	// Keep the buffer fixed across lazy DLL resolution and the native call.
@@ -83,11 +87,7 @@ func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources
 	if err := ensureOwnerJob(); err != nil {
 		return nil, err
 	}
-	var memoryMaxBytes int64
-	if resources != nil {
-		memoryMaxBytes = resources.MemoryMaxBytes
-	}
-	job, err := newWorkerJob(memoryMaxBytes)
+	job, err := newWorkerJob(resources)
 	if err != nil {
 		return nil, err
 	}

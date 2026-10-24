@@ -12,7 +12,7 @@ import (
 
 func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources) (*processControl, error) {
 	if resources != nil {
-		return nil, fmt.Errorf("managed memory limits are unsupported on this platform")
+		return nil, fmt.Errorf("managed resource limits are unsupported on this platform")
 	}
 	configureProcess(cmd)
 	if err := cmd.Start(); err != nil {

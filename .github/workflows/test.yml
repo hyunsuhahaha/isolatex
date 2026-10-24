@@ -59,7 +59,7 @@ jobs:
           bash scripts/check-observability.sh .tools/prometheus/promtool
       - if: runner.os == 'Linux'
         run: go test -race ./... -count=1 -timeout=90s
-      - name: Verify delegated cgroup memory enforcement
+      - name: Verify delegated cgroup memory and task enforcement
         if: runner.os == 'Linux'
         run: sudo bash scripts/check-memory-linux.sh "$(id -un)" "$(command -v go)"
       - if: runner.os == 'Linux' && matrix.go == 'stable'

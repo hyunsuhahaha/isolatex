@@ -153,3 +153,38 @@ func TestUpstreamsRequireUsableHostAndPort(t *testing.T) {
 		})
 	}
 }
+
+func TestDecodeValidatesTaskResources(t *testing.T) {
+	base := strings.Replace(validConfig, `    upstreams: ["http://127.0.0.1:9100"]`, `    process:
+      command: ["./app"]
+      workers: 1
+      port_start: 9100
+      resources: {LIMIT}
+    readiness:
+      path: /readyz
+      interval: 1s
+      timeout: 100ms
+      startup_timeout: 5s`, 1)
+	for _, tt := range []struct {
+		setting  string
+		platform string
+	}{
+		{"tasks_max: 32, cgroup_parent: /sys/fs/cgroup/isolatex", "linux"},
+		{"processes_max: 4", "windows"},
+		{"tasks_max: 32, memory_max_bytes: 67108864, cgroup_parent: /sys/fs/cgroup/isolatex", "linux"},
+		{"processes_max: 4, memory_max_bytes: 67108864", "windows"},
+		{"tasks_max: -1", ""}, {"processes_max: -1", ""},
+		{"processes_max: 4294967296", ""}, {"tasks_max: 0", ""},
+		{"tasks_max: 32", ""},
+		{"tasks_max: 32, cgroup_parent: relative", ""},
+		{"tasks_max: 32, processes_max: 4, cgroup_parent: /sys/fs/cgroup/isolatex", ""},
+		{"task_max: 32", ""},
+	} {
+		t.Run(tt.setting, func(t *testing.T) {
+			_, err := Decode(strings.NewReader(strings.Replace(base, "LIMIT", tt.setting, 1)))
+			if (err == nil) != (runtime.GOOS == tt.platform) {
+				t.Fatalf("platform=%s error=%v", runtime.GOOS, err)
+			}
+		})
+	}
+}

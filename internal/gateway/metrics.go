@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"github.com/hyunsuhahaha/isolatex/internal/config"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,12 +15,14 @@ type metrics struct {
 	queue    *prometheus.HistogramVec
 }
 
-func (b *group) workerMemoryLimit() int64 {
+func (b *group) workerResources() config.Resources {
 	if b.cfg.Process != nil && b.cfg.Process.Resources != nil {
-		return b.cfg.Process.Resources.MemoryMaxBytes
+		return *b.cfg.Process.Resources
 	}
-	return 0
+	return config.Resources{}
 }
+
+func (b *group) workerMemoryLimit() int64 { return b.workerResources().MemoryMaxBytes }
 
 func newRegistry() *prometheus.Registry {
 	r := prometheus.NewRegistry()
@@ -63,6 +66,8 @@ func (b *group) registerMetrics(r *prometheus.Registry) {
 	gauge("isolatex_concurrent_limit", "Configured group execution limit.", func() float64 { return float64(b.cfg.MaxConcurrent) })
 	gauge("isolatex_queue_limit", "Configured group queue capacity.", func() float64 { return float64(b.cfg.QueueSize) })
 	gauge("isolatex_worker_memory_limit_bytes", "Configured per-worker and descendant memory budget; zero disables. Accounting is platform-specific.", func() float64 { return float64(b.workerMemoryLimit()) })
+	gauge("isolatex_worker_tasks_limit", "Configured per-worker Linux task limit including descendant threads; zero disables.", func() float64 { return float64(b.workerResources().TasksMax) })
+	gauge("isolatex_worker_processes_limit", "Configured per-worker Windows active process limit including descendants; zero disables.", func() float64 { return float64(b.workerResources().ProcessesMax) })
 	counter := func(name, help string, f func() float64) {
 		r.MustRegister(prometheus.NewCounterFunc(prometheus.CounterOpts{Name: name, Help: help, ConstLabels: labels}, f))
 	}

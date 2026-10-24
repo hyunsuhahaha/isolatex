@@ -280,3 +280,18 @@ Ubuntu/WSL2 Linux 6.6.87·systemd 255에서 실제 CLI를 User=user, Delegate=me
 추가 검토에서 자원 정리 실패 뒤 재시작을 계속하면 이전 세대의 예산에 새 예산을 겹칠 수 있는 경로를 차단했다. worker_resource_cleanup_failed가 발생한 슬롯은 failed로 멈추고 재시도를 시작하지 않는다. 실제 워커를 HTTP로 크래시시킨 뒤 정리 오류를 주입하는 검사를 추가했다. 이전의 로그 후 재시도 경로는 대조 검사에서 waits=1로 실패했고 수정 후에는 waits=0·슬롯 failed·보호 워커 PID/HTTP 유지가 확인됐다. Windows 검사 5회·Linux race 5회, Windows supervisor 전체·vet 및 최소 Go 1.25.0 Linux의 실제 메모리/cgroup race 검사가 통과했다.
 
 정리 실패 차단까지 포함한 공개 커밋 c3094ed5ef8dc23cc044aedc653a1b15551a5fe5를 별도 Windows GOBIN에 설치했다. v0.0.0-20261024063549-c3094ed5ef8d 버전과 256MiB 메모리 설정의 실제 -check를 통과했으며 설치 스냅샷을 이 커밋으로 갱신했다.
+
+
+## 2026-10-24 — 워커 태스크·프로세스 생성 격벽
+
+`process.resources.tasks_max`(Linux, 스레드 포함)와 `processes_max`(Windows, 활성 프로세스)를 추가했다. 단위가 다르므로 플랫폼별 필드를 구분하며 잘못된 OS·음수·Windows DWORD 초과·양수 한도 없는 resources는 Decode와 공개 CLI `-check`에서 거부한다. 메모리 한도 없이 생성 수만 제한하거나 기존 메모리 한도와 병용할 수 있다. status와 Prometheus에는 설정 상한을 표시한다.
+
+Linux cgroup에는 요청한 컨트롤러만 설정한다. 생성 전 `pids.max`를 적용하고 기존 cgroup FD로 시작하며, Windows는 정지 워커를 활성 프로세스 한도가 설정된 Job에 등록한 뒤 실행한다. 런타임 소유자 Job은 생성 수를 제한하지 않는다. Linux 컨트롤러 미위임 검사는 앱 실행 흔적과 새 cgroup 누출이 없어야 통과한다.
+
+실제 Supervisor·Gateway와 3세대의 유한한 트리(워커→자식→최대 48개 손자)를 사용했다. 무제한 대조는 모두 생성한다. 생성 수 단독·메모리 병용 제한에서는 손자의 생성이 거부되고, 자손 수거 후 두 번째 요청도 처리한다. 두 그룹에 각각 같은 예산을 설정해도 보호 경로의 연속 HTTP 성공·PID·재시작 0이 유지된다. Windows의 오류를 처리한 격리 워커는 같은 PID로 계속 서비스한다. Linux는 태스크 소진 시 Go 런타임이 종료할 수 있어 해당 워커의 복구도 허용한다. 종료 세대의 cgroup 정리 전에 pids.events를 보존하며, 각 요청에서 커널 거부 횟수 증가를 요구한다. HTTP 502만으로 격리 성공을 판단하지 않는다. 테스트 앱은 자손을 소유한 branch가 비정상 종료하면 스스로 종료해 Supervisor가 트리 전체를 회수하도록 한다. Linux 별도 검사는 `LockOSThread`로 64개 스레드 생성을 시도하며, 제한 시 실제 커널 `pids.events:max`가 증가하고 무제한 대조는 완료되어야 한다. race 빌드의 pthread 실패와 일반 빌드의 Go 런타임 실패 문자열 차이에 의존하지 않는다.
+
+Windows·Linux Go 1.27.3 전체 테스트와 vet, Linux 전체 race를 통과했다. 별도 위임 검사로 메모리·생성 수·스레드·컨트롤러 부재 검사를 race 3회 반복했다. Windows Go 1.25.0에서도 새 설정·실제 생성 수 검사를 통과했다. Linux Go 1.25.0에서도 위임된 메모리·생성 수·스레드·컨트롤러 부재 race 검사를 3회 통과했다. Windows 공개 CLI는 생성 수 단독·메모리 병용 설정을 승인하고 잘못된 플랫폼·오버플로·음수·빈 예산은 exit 1로 거부했다.
+
+음성 대조에서는 Windows 활성 프로세스 한도를 잠시 제거하고 Linux pids 한도를 충분히 크게 바꿨다. 두 환경 모두 48개 생성이 성공하여 회귀 테스트가 `descendant budget not enforced`로 실패했다. 원래 제한을 복원한 뒤 다시 검사했다.
+
+CPU·파일 디스크립터·DB 연결·Windows 스레드 수 상한은 이번 변경 범위가 아니다. 같은 사용자 권한의 앱을 대상으로 하는 운영상 격벽이며 악성 코드 샌드박스가 아니다. [설정과 운영 계약](task-limits.md)을 참고한다.
