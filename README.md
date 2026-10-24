@@ -13,7 +13,7 @@
 
 공유 게이트웨이·호스트·DB는 여전히 장애 전파 경로가 될 수 있다. 현재 보장과 검증 결과는 이 경계를 기준으로 설명한다.
 
-현재 **v0.4 개발 중**이다. 경로별 실행·대기 제한, 프로세스 관리, rolling-window Circuit Breaker, 주기적 Health Check와 복구, Prometheus 카운터·게이지·지연시간 histogram을 구현했다. 자원 조건을 맞춘 비교 벤치마크와 관측 예제를 보완하고 있다. cgroup/Job Objects는 이후 확장 범위다.
+현재 **v0.4 개발 중**이다. 경로별 실행·대기 제한, 프로세스 관리, rolling-window Circuit Breaker, 주기적 Health Check와 복구, Prometheus 카운터·게이지·지연시간 histogram을 구현했다. 자원 조건을 맞춘 비교 벤치마크와 관측 예제를 보완하고 있다. Windows Job Objects는 프로세스 수명 관리에 사용하며 CPU·메모리 상한은 이후 확장 범위다.
 
 ## 실행
 
@@ -24,7 +24,7 @@ Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프�
 Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 2026-10-24에 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 스냅샷이다.
 
 ```sh
-go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@15c7638dd5af5225a6aee2f41d363e9604bd84b0
+go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@1ffb18ddc45c22cef3c96ba13129f87d98ce3c4e
 isolatex -version
 ```
 
@@ -39,7 +39,7 @@ go build -o bin/isolatex ./cmd/isolatex
 ./bin/isolatex -config isolatex.yaml
 ```
 
-Windows PowerShell 개발 모드:
+Windows PowerShell:
 
 ```powershell
 go build -o bin/demo-app.exe ./examples/demo-app
@@ -47,7 +47,7 @@ go build -o bin/isolatex.exe ./cmd/isolatex
 .\bin\isolatex.exe -config isolatex.yaml
 ```
 
-Linux에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 보내고 자식을 수거한다. Windows 및 기타 OS의 개발 모드는 **직접 자식만 종료**하며 프로세스 트리 종료를 보장하지 않는다. Linux 동작 검증에는 WSL2를 사용한다. CPU·메모리·DB 자원 상한은 강제하지 않는다.
+Linux에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 보내고 자식을 수거한다. Windows에서는 워커별 Job Object로 자손 수명을 관리하고, 런타임 소유자 Job이 생성 중 또는 런타임 종료 시 남는 자식을 회수한다. HTTP drain 후 Windows의 Job 종료는 강제 종료이며 앱 종료 hook 실행을 보장하지 않는다. macOS 등 나머지 OS는 직접 자식 종료 범위다. [Windows 프로세스 수명과 검증](docs/windows-processes.md) · CPU·메모리·DB 자원 상한은 강제하지 않는다.
 
 관리 포트는 `127.0.0.1:9090`, 게이트웨이는 `127.0.0.1:8080`이다. Ctrl+C 또는 SIGTERM으로 요청을 drain한 후 워커를 종료한다. `-debug`는 요청별 그룹·결과·소요 시간 로그를 추가한다. 요청 URL, query와 헤더는 런타임 요청 로그에 기록하지 않는다. 워커 stdout/stderr는 그대로 전달되므로 앱 로그의 비밀값은 앱에서 제거해야 한다.
 

@@ -17,6 +17,8 @@ race 검사는 C 컴파일러가 필요하다. smoke는 실제 자식 프로세�
 
 Unix의 전체 테스트에는 `TestNativeCLIShutdownWithActiveAndQueuedRequests`가 포함된다. 실제 CLI를 빌드하고 동적으로 고른 네 포트에서 관리형 워커 두 개를 실행한다. SIGTERM으로 대기 요청 거부, 진행 요청의 유예 내 완료, 유예 만료 시 강제 연결 종료, 런타임·워커 PID·포트 정리를 검사한다. `go test ./cmd/isolatex -run TestNativeCLIShutdown -count=1 -timeout=60s`로 따로 실행할 수 있다. 이 검사는 Windows 콘솔 신호나 Linux 자손 프로세스 종료 검사를 대신하지 않는다. `-race`는 테스트와 워커 helper를 계측하며, 이 검사에서 별도로 빌드한 CLI는 일반 빌드다.
 
+Windows의 전체 supervisor 테스트에는 실제 Job Object 자손·다른 워커 유지·부모 워커 선행 종료·소유자 강제 종료·등록 전 정지 워커 회수·관리형 워커 크래시 후 자손 회수가 포함된다. `go test ./internal/supervisor -run 'TestWindows(Job|OwnerJob|ManagedCrash)' -count=1 -timeout=60s`로 따로 실행한다. 운영 코드는 프로세스 수명 동안 루트 Job 핸들 하나를 유지하며 워커 세대별 Job은 종료 후 닫는다. [Windows 수명 설계](docs/windows-processes.md)를 변경 시 함께 확인한다.
+
 ## 장애·경합 수정
 
 문제를 일으키는 설정과 장애 순서를 재현하는 테스트를 먼저 작성한다. 임의의 긴 sleep보다 채널·잠금·제어된 시계를 사용해 경합 순서를 고정한다. 취소·만료·종료·재시작 후 실행 슬롯과 프로세스가 회수되는지, 다른 그룹의 용량과 PID가 유지되는지 확인한다.
