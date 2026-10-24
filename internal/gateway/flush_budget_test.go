@@ -16,12 +16,33 @@ import (
 	"github.com/hyunsuhahaha/isolatex/internal/ingress"
 )
 
-type smallWriteListener struct{ net.Listener }
+type smallWriteListener struct {
+	net.Listener
+	progress *atomic.Int64
+}
+
+type writeProgressConn struct {
+	net.Conn
+	progress *atomic.Int64
+}
+
+func (c writeProgressConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	if n > 0 {
+		c.progress.Store(time.Now().UnixNano())
+	}
+	return n, err
+}
 
 func (l smallWriteListener) Accept() (net.Conn, error) {
 	c, err := l.Listener.Accept()
 	if err == nil {
-		_ = c.(*net.TCPConn).SetWriteBuffer(1024)
+		if err := c.(*net.TCPConn).SetWriteBuffer(1024); err != nil {
+			_ = c.Close()
+			return nil, err
+		}
+		l.progress.Store(time.Now().UnixNano())
+		return writeProgressConn{c, l.progress}, nil
 	}
 	return c, err
 }
@@ -93,7 +114,8 @@ func checkNonReadingConnection(t *testing.T, path string, local bool) {
 		g.groups[0].pool.Set(0, false, 0, "failed")
 	}
 	s := httptest.NewUnstartedServer(g)
-	limited := ingress.New(smallWriteListener{s.Listener}, 1)
+	var progress atomic.Int64
+	limited := ingress.New(smallWriteListener{s.Listener, &progress}, 1)
 	s.Listener = limited
 	s.Config.ReadHeaderTimeout = 5 * time.Second
 	s.Config.IdleTimeout = 5 * time.Second
@@ -112,18 +134,49 @@ func checkNonReadingConnection(t *testing.T, path string, local bool) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { _ = bad.Close() })
-		_ = bad.(*net.TCPConn).SetReadBuffer(1024)
-		_ = bad.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		if err := bad.(*net.TCPConn).SetReadBuffer(1024); err != nil {
+			_ = bad.Close()
+			t.Fatal(err)
+		}
+		_ = bad.SetWriteDeadline(time.Now().Add(15 * time.Second))
 		// Each known-length response fits the HTTP response buffer. Without
 		// an explicit flush its final socket write outlives the handler.
-		_, _ = io.WriteString(bad, strings.Repeat("GET "+path+" HTTP/1.1\r\nHost: test\r\n\r\n", 4096))
-		select {
-		case <-closed:
-		case <-time.After(3 * time.Second):
-			t.Fatalf("cycle %d: non-reading connection survived its response budget; accepted=%d upstream_calls=%d", cycle, limited.Active(), calls.Load())
+		// Keep feeding requests until the server closes: a finite batch can
+		// finish inside a platform's TCP buffers and merely leave an idle conn.
+		writerDone := make(chan struct{})
+		go func() {
+			defer close(writerDone)
+			batch := strings.Repeat("GET "+path+" HTTP/1.1\r\nHost: test\r\n\r\n", 64)
+			for {
+				if _, err := io.WriteString(bad, batch); err != nil {
+					return
+				}
+			}
+		}()
+		t.Cleanup(func() { _ = bad.Close(); <-writerDone })
+		tick := time.NewTicker(50 * time.Millisecond)
+		fillBudget := time.NewTimer(15 * time.Second)
+		t.Cleanup(tick.Stop)
+		t.Cleanup(func() { fillBudget.Stop() })
+	waitClosed:
+		for {
+			select {
+			case <-closed:
+				break waitClosed
+			case <-tick.C:
+				// Buffer filling can make progress for longer on some hosts.
+				// Bound the lack of actual socket-write progress, not total fill time.
+				if last := progress.Load(); last != 0 && time.Since(time.Unix(0, last)) > 3*time.Second {
+					t.Fatalf("cycle %d: non-reading connection survived stalled writes; accepted=%d upstream_calls=%d", cycle, limited.Active(), calls.Load())
+				}
+			case <-fillBudget.C:
+				t.Fatalf("cycle %d: could not fill TCP buffers within test budget; upstream_calls=%d", cycle, calls.Load())
+			}
 		}
+		tick.Stop()
+		fillBudget.Stop()
 		_ = bad.Close()
+		<-writerDone
 		if limited.Active() != 0 {
 			t.Fatalf("connection permit leaked: %d", limited.Active())
 		}
