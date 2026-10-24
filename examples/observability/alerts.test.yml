@@ -1,0 +1,103 @@
+rule_files:
+  - alerts.yml
+evaluation_interval: 15s
+tests:
+  - name: one failed group leaves the other group alone
+    interval: 15s
+    input_series:
+      - series: 'up{job="isolatex",instance="localhost:9090"}'
+        values: '1x12'
+      - series: 'up{job="isolatex",instance="other:9090"}'
+        values: '1x12'
+      - series: 'isolatex_ready_workers{job="isolatex",instance="localhost:9090",group="alpha"}'
+        values: '2 0x11'
+      - series: 'isolatex_ready_workers{job="isolatex",instance="localhost:9090",group="beta"}'
+        values: '2x12'
+      - series: 'isolatex_ready_workers{job="isolatex",instance="other:9090",group="alpha"}'
+        values: '2x12'
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: IsolateXGroupUnavailable
+        exp_alerts: []
+      - eval_time: 45s
+        alertname: IsolateXGroupUnavailable
+        exp_alerts:
+          - exp_labels: {job: isolatex, instance: "localhost:9090", group: alpha, severity: warning}
+            exp_annotations:
+              summary: "IsolateX group alpha on localhost:9090 has no ready worker"
+      - eval_time: 1m
+        alertname: IsolateXRuntimeUnreachable
+        exp_alerts: []
+  - name: lost runtime does not create stale group alerts
+    interval: 15s
+    input_series:
+      - series: 'up{job="isolatex",instance="localhost:9090"}'
+        values: '0x12'
+      - series: 'isolatex_ready_workers{job="isolatex",instance="localhost:9090",group="alpha"}'
+        values: '0x12'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: IsolateXRuntimeUnreachable
+        exp_alerts:
+          - exp_labels: {job: isolatex, instance: "localhost:9090", severity: critical}
+            exp_annotations:
+              summary: "IsolateX runtime localhost:9090 cannot be scraped"
+      - eval_time: 1m
+        alertname: IsolateXGroupUnavailable
+        exp_alerts: []
+  - name: rejection ratio remains local to its group
+    interval: 30s
+    input_series:
+      - series: 'up{job="isolatex",instance="localhost:9090"}'
+        values: '1x12'
+      - series: 'isolatex_requests_total{job="isolatex",instance="localhost:9090",group="alpha",outcome="success"}'
+        values: '0+90x12'
+      - series: 'isolatex_requests_total{job="isolatex",instance="localhost:9090",group="alpha",outcome="queue_full"}'
+        values: '0+30x12'
+      - series: 'isolatex_rejected_requests_total{job="isolatex",instance="localhost:9090",group="alpha",reason="queue_full"}'
+        values: '0+30x12'
+      - series: 'isolatex_requests_total{job="isolatex",instance="localhost:9090",group="beta",outcome="success"}'
+        values: '0+120x12'
+      - series: 'isolatex_rejected_requests_total{job="isolatex",instance="localhost:9090",group="beta",reason="queue_full"}'
+        values: '0x12'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: IsolateXGroupRejections
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: IsolateXGroupRejections
+        exp_alerts:
+          - exp_labels: {job: isolatex, instance: "localhost:9090", group: alpha, severity: warning}
+            exp_annotations:
+              summary: "IsolateX group alpha on localhost:9090 rejects over 10% of requests"
+  - name: idle traffic and a brief readiness failure do not page
+    interval: 15s
+    input_series:
+      - series: 'up{job="isolatex",instance="localhost:9090"}'
+        values: '1x16'
+      - series: 'isolatex_ready_workers{job="isolatex",instance="localhost:9090",group="alpha"}'
+        values: '2 0 2x14'
+      - series: 'isolatex_requests_total{job="isolatex",instance="localhost:9090",group="alpha",outcome="success"}'
+        values: '0x16'
+      - series: 'isolatex_rejected_requests_total{job="isolatex",instance="localhost:9090",group="alpha",reason="queue_full"}'
+        values: '0x16'
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: IsolateXGroupUnavailable
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: IsolateXGroupRejections
+        exp_alerts: []
+  - name: tiny traffic does not pass the minimum completed rate
+    interval: 15s
+    input_series:
+      - series: 'up{job="isolatex",instance="localhost:9090"}'
+        values: '1x24'
+      - series: 'isolatex_requests_total{job="isolatex",instance="localhost:9090",group="alpha",outcome="queue_full"}'
+        values: '0+1x24'
+      - series: 'isolatex_rejected_requests_total{job="isolatex",instance="localhost:9090",group="alpha",reason="queue_full"}'
+        values: '0+1x24'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: IsolateXGroupRejections
+        exp_alerts: []
