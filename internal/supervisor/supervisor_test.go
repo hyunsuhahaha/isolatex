@@ -31,6 +31,10 @@ func TestWorkerHelper(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if filename := os.Getenv("HEALTH_HEADER_FILE"); filename != "" {
+			data, _ := os.ReadFile(filename)
+			w.Header().Set("X-Readiness", string(data))
+		}
 		if filename := os.Getenv("HEALTH_FILE"); filename != "" {
 			data, _ := os.ReadFile(filename)
 			if string(data) != "healthy" {

@@ -38,6 +38,10 @@ type logLine struct {
 	text   string
 }
 
+// Readiness runs inside the shared supervisor. Do not let a faulty worker's
+// headers use net/http's much larger default response-header allowance.
+const maxReadinessHeaderBytes = 64 << 10
+
 func New(c config.Config, logger *slog.Logger) *Supervisor {
 	s := &Supervisor{
 		cfg: c, Pools: map[string]*pool.Pool{}, log: logger,
@@ -170,7 +174,7 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 }
 
 func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, done <-chan error, p *pool.Pool, index int, r config.Readiness) error {
-	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true}
+	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, MaxResponseHeaderBytes: maxReadinessHeaderBytes}
 	defer tr.CloseIdleConnections()
 	client := &http.Client{Transport: tr, Timeout: r.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	startupCtx, cancelStartup := context.WithTimeout(ctx, r.StartupTimeout)
@@ -229,7 +233,7 @@ func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, done <-chan error
 func (s *Supervisor) monitorStatic(ctx context.Context, name string, index int, r config.Readiness) {
 	p := s.Pools[name]
 	p.Set(index, false, 0, "checking")
-	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true}
+	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, MaxResponseHeaderBytes: maxReadinessHeaderBytes}
 	defer tr.CloseIdleConnections()
 	client := &http.Client{Transport: tr, Timeout: r.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	defer p.Set(index, false, 0, "stopped")
