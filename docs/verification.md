@@ -409,3 +409,5 @@ TCP 연결 전 버퍼 설정 후 macOS 검사는 각 회수 주기가 진행되�
 Windows Go 1.27.3 및 최소 Go 1.25.0 회귀 각 10회, Linux Go 1.27.3 race 회귀 10회가 통과했다. Windows 전체 테스트·vet와 실제 HAProxy를 포함한 Linux 전체 race·vet도 통과했다. Linux 위임 cgroup 검사는 실제 메모리 cgroup을 생성한 뒤 없는 실행 파일 시작이 실패하면 새 디렉터리가 남지 않고 원래 실행 오류가 재시도 가능한 상태로 보존되는지 별도로 검사한다.
 
 위임 cgroup의 실제 실패 실행·메모리·태스크 예산 검사를 포함한 scripts/check-memory-linux.sh도 race 모드 3회 통과했다.
+
+공개 커밋 e218e0295c5e9fbf52b65e6ffd04ab72f002e1f5를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024191202-e218e0295c5e 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
