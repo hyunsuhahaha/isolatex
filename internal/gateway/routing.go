@@ -49,6 +49,7 @@ func (g *Gateway) serveRoutingProbe(w http.ResponseWriter, r *http.Request, name
 			continue
 		}
 		status := g.routingStatus(b)
+		w.Header().Set("IsolateX-Routing", "v1:"+b.name)
 		w.Header().Set("Content-Type", "application/json")
 		code := http.StatusOK
 		if !status.Eligible {

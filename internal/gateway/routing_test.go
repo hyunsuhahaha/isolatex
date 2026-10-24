@@ -32,6 +32,9 @@ func readRouting(t *testing.T, url string, want int) RoutingStatus {
 	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
+	if resp.Header.Get("IsolateX-Routing") != "v1:"+status.Group {
+		t.Fatal("routing response lacks its version/group identity")
+	}
 	return status
 }
 

@@ -29,9 +29,10 @@ func TestHAProxyIndependentGroupRouting(t *testing.T) {
 		t.Skip("set ISOLATEX_TEST_HAPROXY to run the real load balancer integration")
 	}
 	type node struct {
-		gateway      *Gateway
-		public       *httptest.Server
-		alphaHealthy *atomic.Bool
+		gateway       *Gateway
+		public        *httptest.Server
+		alphaHealthy  *atomic.Bool
+		probeFallback *atomic.Bool
 	}
 	release := make(chan struct{})
 	var once sync.Once
@@ -85,10 +86,19 @@ func TestHAProxyIndependentGroupRouting(t *testing.T) {
 		t.Cleanup(s.Stop)
 		g := New(c, s.Pools, logger)
 		t.Cleanup(g.Close)
-		public := httptest.NewServer(g)
+		fallback := &atomic.Bool{}
+		public := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Simulate an absent probe configuration falling through to a
+			// catch-all app that returns 200 for unknown paths.
+			if fallback.Load() && strings.HasPrefix(r.URL.Path, "/_isolatex/route/") {
+				_, _ = io.WriteString(w, "app fallback")
+				return
+			}
+			g.ServeHTTP(w, r)
+		}))
 		t.Cleanup(public.Close)
 		eventually(t, func() bool { return s.Pools["alpha"].Ready() == alphaWorkers && s.Pools["beta"].Ready() == 1 })
-		return node{g, public, healthy}
+		return node{g, public, healthy, fallback}
 	}
 	a, b := makeNode("A", 1), makeNode("B", 2)
 	// Run this cleanup before the servers: failed tests must release held work.
@@ -261,4 +271,12 @@ func TestHAProxyIndependentGroupRouting(t *testing.T) {
 	waitState("UP", "DOWN")
 	assertRoutes("/a", "A")
 	assertRoutes("/b", "AB")
+	b.probeFallback.Store(true)
+	b.alphaHealthy.Store(true)
+	eventually(t, func() bool {
+		s := states()
+		return s["alpha/node_a"] == "UP" && s["alpha/node_b"] == "DOWN" && s["beta/node_a"] == "UP" && s["beta/node_b"] == "DOWN"
+	})
+	assertRoutes("/a", "A")
+	assertRoutes("/b", "A")
 }

@@ -16,6 +16,8 @@ IsolateX는 서버별 로컬 격벽이다. 서버 A의 alpha가 실패해도 A�
 {"group":"alpha","eligible":true,"reason":"available","ready_workers":2,"active":1,"queued":0,"free_concurrency":1,"free_queue":2}
 ```
 
+알려진 그룹의 응답에는 `IsolateX-Routing: v1:alpha`처럼 버전·그룹 헤더도 포함한다. 예제 HAProxy는 200과 이 헤더를 모두 검사한다. 조회 설정 누락으로 catch-all 앱이 같은 URL에 200을 반환하는 경우를 정상으로 오인하지 않기 위한 식별자이며, 인증이나 위조 방지는 아니다.
+
 제외 사유는 `draining`, `no_ready_worker`, `circuit_open`, `saturated` 순서로 판단한다. `circuit_open`에는 이미 시험 요청이 진행 중인 Half-open 상태도 포함한다. 준비된 워커가 있어도 실행·대기 자리가 모두 차면 `saturated`다. 이것 때문에 워커 자체를 unhealthy로 바꾸지는 않는다. 조회는 요청 슬롯을 점유하거나 차단기의 시험 요청을 시작하지 않는다.
 
 `free_concurrency`와 `free_queue`는 해당 서버에 설정된 그룹 예산의 현재 여유다. 워커 수에 자동 비례하거나 CPU·DB의 여유를 측정한 값이 아니다. 워커 일부가 사라져도 그룹의 설정 예산 자체는 바뀌지 않는다. 서로 다른 수의 워커를 가진 서버에는 각각 맞는 예산을 설정한다.
@@ -79,4 +81,4 @@ ISOLATEX_TEST_HAPROXY="$(command -v haproxy)" \
   go test -race ./internal/gateway -run '^TestHAProxyIndependentGroupRouting$' -count=2 -timeout=90s
 ```
 
-검사는 두 노드의 실제 HTTP gateway·Supervisor readiness 감시와 1개/2개의 독립 alpha HTTP upstream을 구성하고 제공된 HAProxy 설정을 직접 실행한다. A의 alpha 실행·대기열 포화 → 회복 → readiness 실패 → 양쪽 alpha 실패 → A만 회복을 순서대로 주입한다. HAProxy의 서버 상태가 그룹별로 수렴하는지와 실제 POST의 목적지를 모두 검사한다. 매 단계 beta는 A·B 모두에서 계속 응답해야 한다. 조회 경로와 `/a-old`가 외부 frontend에서 노출되지 않는지도 확인한다. 이 검사는 OS 워커 생성 검사나 장시간 성능 검사를 대신하지 않으며, 기존 워커 격리 검사는 별도로 실행한다.
+검사는 두 노드의 실제 HTTP gateway·Supervisor readiness 감시와 1개/2개의 독립 alpha HTTP upstream을 구성하고 제공된 HAProxy 설정을 직접 실행한다. A의 alpha 실행·대기열 포화 → 회복 → readiness 실패 → 양쪽 alpha 실패 → A만 회복을 순서대로 주입한다. HAProxy의 서버 상태가 그룹별로 수렴하는지와 실제 POST의 목적지를 모두 검사한다. 매 단계 beta는 A·B 모두에서 계속 응답해야 한다. 조회 경로와 `/a-old`가 외부 frontend에서 노출되지 않는지도 확인한다. 조회 대신 일반 앱의 200이 반환되는 잘못된 노드도 버전·그룹 헤더가 없어 제외되는지 검사한다. 이 검사는 OS 워커 생성 검사나 장시간 성능 검사를 대신하지 않으며, 기존 워커 격리 검사는 별도로 실행한다.
