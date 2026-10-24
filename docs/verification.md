@@ -472,3 +472,5 @@ Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.
 실제 TCP 회귀 검사는 잘못된 크기, chunk 종결자, trailer 세 가지를 비교한다. 각 조건에서 400, 연결 종료, 차단기 closed / Requests=1 / Failures=0, request_body_error 지표와 실행·대기 슬롯 회수를 확인한다. 이어 같은 그룹과 보호 그룹의 정상 요청이 모두 200이어야 한다. 유효한 본문을 받은 backend의 실제 소켓 종료는 502 / open / Requests=2 / Failures=1로 남는 대조 검사도 포함한다.
 
 Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet(실제 HAProxy 포함)가 통과했다. 신규 네 조건은 Windows에서 5회, Linux race에서 5회 통과했다. 기존 네 가지 본문 시간 초과/5xx 귀속 조건과 신규 네 조건은 Windows 최소 Go 1.25.0에서 2회 통과했다.
+
+공개 커밋 082617ac63e619d5a1a35c4f53ec2def081939e2를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024231310-082617ac63e6 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
