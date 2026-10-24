@@ -358,3 +358,5 @@ Linux race 연동 3회가 통과했다. alpha가 beta 상태를 검사하도록 
 Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet, Windows 최소 Go 1.25.0의 routing/config 검사 5회가 통과했다. 조회 기본 비활성화, prefix 충돌·catch-all 예약, 인코딩 경로 거부, HEAD/405/404, no-store, 포화/준비 상태 분리와 Half-open 시험 비소비도 검사한다. Linux stable CI에 실제 HAProxy 설치·race 연동 2회를 추가했다. 이 연동은 HTTP 서버 상태 분산 검사이며 OS 워커 생성과 장시간 성능 검증은 기존 별도 검사 범위다.
 
 추가 검토에서 조회 설정이 빠진 catch-all 앱의 200을 앞단이 정상으로 오인하지 않도록 IsolateX-Routing: v1:<group> 헤더를 반환하고, HAProxy가 200과 해당 헤더를 모두 검사하게 했다. 연동 마지막 단계에서 일반 앱의 200 fallback을 주입하고 해당 노드를 alpha·beta 모두에서 제외하는 검사도 추가했다. 이는 응답 형식 식별이며 인증이 아니다.
+
+헤더 식별 보강 후 실제 HAProxy 2.8.30 race 연동도 3회 통과했다. 공개 커밋 134443c3abd0df5d785de83a9c3a0c5989eeee42를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024145930-134443c3abd0 버전과 routing_probe_prefix가 포함된 HAProxy 노드 설정의 -check 성공을 확인했다. README 설치 고정값을 이 스냅샷으로 갱신했다.

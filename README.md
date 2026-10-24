@@ -21,10 +21,10 @@ Go 1.25 이상이 필요하다. 저장소 루트에서 실행한다. HTTP 처리
 
 Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프로젝트가 보안 수정을 지원하는 버전의 최신 패치로 빌드한다. Windows 의존성의 알려진 취약점 수정을 위해 최소 버전을 기존 1.23에서 올렸다. [보안 범위와 검사](SECURITY.md)
 
-Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 2026-10-24에 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 스냅샷이다.
+Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 개발 스냅샷이다.
 
 ```sh
-go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@e225acbb1cc213a5db12f9092ecaad7e0c9deb58
+go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@134443c3abd0df5d785de83a9c3a0c5989eeee42
 isolatex -version
 ```
 
