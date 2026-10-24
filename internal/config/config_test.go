@@ -71,3 +71,25 @@ func TestAdmissionBudgetReservesEveryBulkhead(t *testing.T) {
 		})
 	}
 }
+
+func TestUpstreamsRequireUsableHostAndPort(t *testing.T) {
+	for _, origin := range []string{
+		"http://:9100", "http://127.0.0.1:", "http://127.0.0.1:0",
+		"http://127.0.0.1:65536", "http://[::1]:65536", "http://localhost:999999999999999999999",
+	} {
+		t.Run(origin, func(t *testing.T) {
+			input := strings.Replace(validConfig, "http://127.0.0.1:9100", origin, 1)
+			if _, err := Decode(strings.NewReader(input)); err == nil {
+				t.Fatal("unusable upstream accepted")
+			}
+		})
+	}
+	for _, origin := range []string{"http://127.0.0.1:1", "http://localhost:65535", "http://[::1]:9100", "http://service.internal:8080/"} {
+		t.Run(origin, func(t *testing.T) {
+			input := strings.Replace(validConfig, "http://127.0.0.1:9100", origin, 1)
+			if _, err := Decode(strings.NewReader(input)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
