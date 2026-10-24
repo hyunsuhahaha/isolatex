@@ -272,3 +272,5 @@ Linux 위임 검사 중 부모 경로만 위임하고 테스트 소유자를 범
 Windows 전체 test·vet와 Linux 전체 race·vet가 통과했다. Go 1.25.0 Windows/Linux의 config·supervisor 전체 검사도 통과했으며 같은 최소 버전 Linux의 실제 위임 메모리 race 검사 3회를 통과했다.
 
 Ubuntu/WSL2 Linux 6.6.87·systemd 255에서 실제 CLI를 User=user, Delegate=memory, DelegateSubgroup=manager, OOMPolicy=continue로 실행했다. 자손 메모리 주입 뒤 서비스는 active를 유지했고 런타임 PID가 유지됐다. 보호 워커 PID는 5862 그대로, 장애 워커는 5863에서 5910으로 교체됐으며 재시작 1회였다. 실제 파일 값 268435456·swap 0·OOM 그룹 1과 status의 설정값을 확인한 뒤 임시 서비스를 종료했다. 서비스 예제와 메모리 회계 차이·호스트 여유·미지원 OS·CPU/DB 한계를 문서화했다.
+
+공개 모듈 커밋 eb8466b151c749ad3862abf23081249f44c611fb를 Windows의 별도 GOBIN에 설치했다. 버전 v0.0.0-20261024062105-eb8466b151c7과 기본 YAML·256MiB 메모리 옵션을 추가한 YAML의 실제 -check를 통과했다. README 설치 스냅샷을 이 메모리 기능 포함 커밋으로 갱신했다.
