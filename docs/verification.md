@@ -443,3 +443,5 @@ Go Transport는 요청 취소를 분리한 문맥으로 DialContext를 호출해
 시간 초과 응답이 close=false로 반환되는 조건도 별도 검사로 재현했다. 읽기 기한으로 취소된 서버 연결 문맥이 다음 요청으로 이어지지 않도록 시간 초과·취소 오류 응답에 Connection: close를 설정한다. 정상 응답의 keep-alive는 유지한다.
 
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 최소 Windows Go 1.25.0 및 Linux race에서 요청 기한·클라이언트 취소·Transport 자체 취소·시간 초과 응답 후 정상 요청 회귀를 각각 20회 통과했다. 클라이언트 취소 검사에서는 연결 시도의 실제 시작을 확인한 뒤 5초 요청 기한보다 먼저 취소하고, 소켓 회수·슬롯 회수·정상 upstream 차단기 유지와 다른 경로 200을 확인한다.
+
+공개 커밋 677cbad45bc948fd251943ff72def3842d397c3f를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024211936-677cbad45bc9 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다. 마지막 슬롯 검사는 응답 수신과 서버 회계 완료 사이의 경합을 피하도록 완료를 기다리며, 해당 Windows 회귀도 추가 5회 통과했다.

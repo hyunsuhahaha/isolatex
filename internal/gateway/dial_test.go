@@ -48,9 +48,7 @@ func TestRequestDeadlineReclaimsPendingUpstreamDials(t *testing.T) {
 		t.Fatalf("request budgets released with pending sockets: active=%d peak=%d", dials.active.Load(), dials.peak.Load())
 	}
 	for _, group := range g.groups {
-		if a, q := group.gate.snapshot(); a != 0 || q != 0 {
-			t.Fatalf("%s leaked slots: %d/%d", group.name, a, q)
-		}
+		eventually(t, func() bool { a, q := group.gate.snapshot(); return a == 0 && q == 0 })
 	}
 }
 
