@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -130,12 +131,17 @@ func checkNonReadingConnection(t *testing.T, path string, local bool) {
 	client := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{DisableKeepAlives: true, Proxy: nil}}
 	defer client.CloseIdleConnections()
 	for cycle := 0; cycle < 3; cycle++ {
-		bad, err := net.DialTimeout("tcp", s.Listener.Addr().String(), time.Second)
+		// Set the receive window before the handshake. Reducing SO_RCVBUF
+		// after connecting does not retract an already advertised TCP window.
+		dialer := net.Dialer{Timeout: time.Second, Control: func(_, _ string, raw syscall.RawConn) error {
+			var socketErr error
+			if err := raw.Control(func(fd uintptr) { socketErr = setTestReceiveBuffer(fd) }); err != nil {
+				return err
+			}
+			return socketErr
+		}}
+		bad, err := dialer.Dial("tcp", s.Listener.Addr().String())
 		if err != nil {
-			t.Fatal(err)
-		}
-		if err := bad.(*net.TCPConn).SetReadBuffer(1024); err != nil {
-			_ = bad.Close()
 			t.Fatal(err)
 		}
 		_ = bad.SetWriteDeadline(time.Now().Add(15 * time.Second))
