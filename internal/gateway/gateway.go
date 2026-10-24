@@ -27,6 +27,7 @@ type group struct {
 	pool      *pool.Pool
 	gate      *gate
 	transport *http.Transport
+	dialer    *requestDialer
 	breaker   *breaker.Breaker
 	metrics   metrics
 }
@@ -44,8 +45,9 @@ type Gateway struct {
 func New(c config.Config, pools map[string]*pool.Pool, logger *slog.Logger) *Gateway {
 	g := &Gateway{cfg: c, log: logger, registry: newRegistry()}
 	for name, cfg := range c.Bulkheads {
-		t := &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext, MaxIdleConns: cfg.MaxConcurrent, MaxIdleConnsPerHost: cfg.MaxConcurrent, MaxConnsPerHost: cfg.MaxConcurrent, IdleConnTimeout: 30 * time.Second, ResponseHeaderTimeout: cfg.RequestTimeout, MaxResponseHeaderBytes: 64 << 10, DisableCompression: true}
-		b := &group{name: name, cfg: cfg, pool: pools[name], gate: newGate(cfg.MaxConcurrent, cfg.QueueSize), transport: t, breaker: breaker.New(cfg.CircuitBreaker)}
+		dialer := &requestDialer{dial: (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext}
+		t := &http.Transport{Proxy: nil, DialContext: dialer.DialContext, MaxIdleConns: cfg.MaxConcurrent, MaxIdleConnsPerHost: cfg.MaxConcurrent, MaxConnsPerHost: cfg.MaxConcurrent, IdleConnTimeout: 30 * time.Second, ResponseHeaderTimeout: cfg.RequestTimeout, MaxResponseHeaderBytes: 64 << 10, DisableCompression: true}
+		b := &group{name: name, cfg: cfg, pool: pools[name], gate: newGate(cfg.MaxConcurrent, cfg.QueueSize), transport: t, dialer: dialer, breaker: breaker.New(cfg.CircuitBreaker)}
 		b.registerMetrics(g.registry)
 		g.groups = append(g.groups, b)
 	}
@@ -190,7 +192,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	expired := func() bool { return !time.Now().Before(deadline) || errors.Is(ctx.Err(), context.DeadlineExceeded) }
 	_ = rc.SetReadDeadline(deadline)
 	_ = rc.SetWriteDeadline(deadline)
-	r = r.WithContext(ctx)
+	r = r.WithContext(context.WithValue(ctx, dialRequestContextKey{}, ctx))
 	r.Body = http.MaxBytesReader(w, r.Body, g.cfg.MaxBodyBytes)
 	tracked := &trackingWriter{ResponseWriter: w}
 	outcome = "success"
@@ -220,6 +222,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
+			// An expired socket read deadline can cancel net/http's connection
+			// context. Do not reuse that connection for another request.
+			if expired() || req.Context().Err() != nil {
+				w.Header().Set("Connection", "close")
+			}
 			// Allow a small error response after the upstream budget expired.
 			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(250 * time.Millisecond))
 			var tooLarge *http.MaxBytesError
