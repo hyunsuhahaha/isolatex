@@ -75,6 +75,11 @@ func fail(w http.ResponseWriter, status int, code string) {
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	rc := http.NewResponseController(w)
+	// Local rejections and routing probes also need a bounded final socket
+	// write. net/http resets this after finishing the response, not us before
+	// its buffered tail has been written.
+	_ = rc.SetWriteDeadline(time.Now().Add(250 * time.Millisecond))
 	// Explicitly reserved probes precede routing and draining rejection so
 	// remote balancers can observe why a group is ineligible during shutdown.
 	if prefix := g.cfg.RoutingProbePrefix; prefix != "" && (r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/")) {
@@ -133,6 +138,10 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), b.cfg.RequestTimeout)
 	defer cancel()
+	deadline, _ := ctx.Deadline()
+	// Queue timeout replies must still have the same small write grace as
+	// upstream timeout replies. Dispatch tightens this to the request budget.
+	_ = rc.SetWriteDeadline(deadline.Add(250 * time.Millisecond))
 	queueStart := time.Now()
 	admissionErr := b.gate.acquire(ctx, b.cfg.QueueTimeout)
 	queueOutcome := "assigned"
@@ -178,12 +187,9 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer release()
-	deadline, _ := ctx.Deadline()
 	expired := func() bool { return !time.Now().Before(deadline) || errors.Is(ctx.Err(), context.DeadlineExceeded) }
-	rc := http.NewResponseController(w)
 	_ = rc.SetReadDeadline(deadline)
 	_ = rc.SetWriteDeadline(deadline)
-	defer func() { _ = rc.SetReadDeadline(time.Time{}); _ = rc.SetWriteDeadline(time.Time{}) }()
 	r = r.WithContext(ctx)
 	r.Body = http.MaxBytesReader(w, r.Body, g.cfg.MaxBodyBytes)
 	tracked := &trackingWriter{ResponseWriter: w}
@@ -256,6 +262,20 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	proxy.ServeHTTP(tracked, r)
+	// Small known-length responses can remain entirely in net/http's buffer.
+	// Flush before releasing the pool/gate and completing breaker/metrics so
+	// a non-reading client cannot hide a blocked tail outside our deadline.
+	if err := rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		outcome = "stream_error"
+		if expired() {
+			outcome = "timeout"
+		}
+		// A downstream write failure is not evidence against a healthy
+		// upstream. Keep a backend failure already established by its reply.
+		if result == breaker.Success {
+			result = breaker.Ignored
+		}
+	}
 	if ctx.Err() != nil && outcome == "success" {
 		outcome = "canceled"
 		result = breaker.Ignored
