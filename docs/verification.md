@@ -462,3 +462,13 @@ Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.
 200 헤더를 먼저 보내는 추가 조건도 Linux race 5회 통과했다. 최종 네 조건과 keep-alive 검사는 Windows 최소 Go 1.25.0에서 한 번 더 통과했고, 정상 read/EOF 경로에서 불필요한 오류 탐색을 생략한 최종 구현의 네 조건 검사도 Windows에서 통과했다.
 
 공개 커밋 b6706f384a112133a5c5ba7925852c4cf5b8659f를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024222245-b6706f384a11 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
+
+## 잘못된 chunked 본문의 장애 귀속 (2026-10-25)
+
+실제 TCP 소켓에서 chunk 크기를 Z로 전송했다. 수정 전 502 응답과 차단기 open / Requests=2 / Failures=1을 재현했다. 앞선 정상 요청 한 개 외에는 upstream 장애가 없었지만 클라이언트의 framing 오류가 실패 표본이 되어 같은 그룹을 차단했다.
+
+본문 reader 오류에 원인을 보존하는 private wrapper를 붙이고 ReverseProxy ErrorHandler에서 전달받은 오류 체인을 확인한다. 본문 오류가 실제 전송 실패 원인인 경우에만 400 / request_body_error / Ignored로 귀속하고 연결을 닫는다. 단순히 본문 읽기 오류가 관측됐다는 전역 플래그로 모든 upstream 오류를 무시하지 않는다. 기존 MaxBytesError·기한·취소 정책을 우선 유지하고 Transport의 본문 종료에 따른 ErrBodyReadAfterClose는 wrapper에서 제외한다.
+
+실제 TCP 회귀 검사는 잘못된 크기, chunk 종결자, trailer 세 가지를 비교한다. 각 조건에서 400, 연결 종료, 차단기 closed / Requests=1 / Failures=0, request_body_error 지표와 실행·대기 슬롯 회수를 확인한다. 이어 같은 그룹과 보호 그룹의 정상 요청이 모두 200이어야 한다. 유효한 본문을 받은 backend의 실제 소켓 종료는 502 / open / Requests=2 / Failures=1로 남는 대조 검사도 포함한다.
+
+Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet(실제 HAProxy 포함)가 통과했다. 신규 네 조건은 Windows에서 5회, Linux race에서 5회 통과했다. 기존 네 가지 본문 시간 초과/5xx 귀속 조건과 신규 네 조건은 Windows 최소 Go 1.25.0에서 2회 통과했다.
