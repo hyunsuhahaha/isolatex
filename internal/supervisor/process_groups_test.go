@@ -42,7 +42,7 @@ func checkProcessGroup(t *testing.T, legacy bool) {
 	var control *processControl
 	if legacy {
 		err = cmd.Start()
-		control = &processControl{signal: func(bool) { _ = cmd.Process.Kill() }, close: func() {}}
+		control = &processControl{signal: func(bool) { _ = cmd.Process.Kill() }, close: func() error { return nil }}
 	} else {
 		control, err = startManagedProcess(cmd)
 	}

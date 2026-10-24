@@ -30,6 +30,7 @@ type Supervisor struct {
 	dropped atomic.Uint64
 	now     func() time.Time
 	wait    func(context.Context, time.Duration) bool
+	start   func(*exec.Cmd, *config.Resources) (*processControl, error)
 }
 
 type logLine struct {
@@ -46,6 +47,7 @@ func New(c config.Config, logger *slog.Logger) *Supervisor {
 	s := &Supervisor{
 		cfg: c, Pools: map[string]*pool.Pool{}, log: logger,
 		logs: make(chan logLine, 256), now: time.Now, wait: pause,
+		start: startManagedProcessWithResources,
 	}
 	for name, g := range c.Bulkheads {
 		origins := g.Upstreams
@@ -127,7 +129,7 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 		cmd.Stderr = writer
 		cmd.WaitDelay = time.Second
 		p.Set(index, false, 0, "starting")
-		control, err := startManagedProcess(cmd)
+		control, err := s.start(cmd, g.Process.Resources)
 		if err == nil {
 			pid := cmd.Process.Pid
 			p.Set(index, false, pid, "starting")
@@ -137,7 +139,13 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 			err = s.watch(ctx, cmd, control, done, p, index, g.Readiness)
 			// Also clean remaining descendants after a direct child's exit.
 			control.signal(true)
-			control.close()
+			if closeErr := control.close(); closeErr != nil {
+				s.log.Error("worker_resource_cleanup_failed", "group", name, "worker", index, "error", closeErr)
+				// Never stack another generation's budget on resources whose
+				// teardown could not be confirmed. Other slots remain independent.
+				p.Set(index, false, 0, "failed")
+				return
+			}
 		}
 		p.Set(index, false, 0, "backoff")
 		if ctx.Err() != nil {
