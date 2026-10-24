@@ -32,9 +32,9 @@ func TestCircuitOpensFailsFastAndRecovers(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	if state := g.groups[0].breaker.Snapshot().State; state != "open" {
-		t.Fatalf("state=%s", state)
-	}
+	// Receiving the last response byte can precede completion of the
+	// gateway's final flush and deferred circuit accounting.
+	eventually(t, func() bool { return g.groups[0].breaker.Snapshot().State == "open" })
 	before := calls.Load()
 	resp, err := s.Client().Get(s.URL + "/api/fault")
 	if err != nil {
@@ -54,9 +54,7 @@ func TestCircuitOpensFailsFastAndRecovers(t *testing.T) {
 	if got := code(t, s.Client(), s.URL+"/api/fault"); got != 200 {
 		t.Fatal(got)
 	}
-	if state := g.groups[0].breaker.Snapshot().State; state != "closed" {
-		t.Fatalf("recovery state=%s", state)
-	}
+	eventually(t, func() bool { return g.groups[0].breaker.Snapshot().State == "closed" })
 	admin := httptest.NewServer(g.Admin())
 	defer admin.Close()
 	resp, err = admin.Client().Get(admin.URL + "/metrics")
