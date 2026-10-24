@@ -424,3 +424,5 @@ Supervisor는 첫 정리 실패에서 이미 해당 슬롯의 교체를 차단�
 실제 위임 cgroup의 반복·동시 정리 검사는 Linux Go 1.27.3 race 모드 10회(반복 결과 80개) 통과했다. Windows 전체 테스트·vet도 통과했다. Linux 전체 race 검증 중 기존 TCP 검사에서 0.10초 구간을 3초 쓰기 정지로 판정한 실패를 발견했다. 진행 시각을 UnixNano로 저장하고 벽시계로 복원하던 계산을 time.Time의 단조 시각을 유지하는 원자 포인터로 바꿔 VM 시계 보정 영향을 제거했다.
 
 단조 시각 적용 후 TCP 회귀는 Windows 5회와 Linux race 5회 통과했고, 실제 HAProxy를 포함한 Linux 전체 race·vet도 통과했다.
+
+공개 커밋 b54e28a763d40dd05ba17fa0fe3486b6ec7c31d8을 Windows·Linux에서 각각 go install하고 v0.0.0-20261024201714-b54e28a763d4 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
