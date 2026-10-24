@@ -47,7 +47,7 @@ go build -o bin/isolatex.exe ./cmd/isolatex
 .\bin\isolatex.exe -config isolatex.yaml
 ```
 
-Linux에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 보내고 자식을 수거한다. Windows에서는 워커별 Job Object로 자손 수명을 관리하고, 런타임 소유자 Job이 생성 중 또는 런타임 종료 시 남는 자식을 회수한다. HTTP drain 후 Windows의 Job 종료는 강제 종료이며 앱 종료 hook 실행을 보장하지 않는다. macOS 등 나머지 OS는 직접 자식 종료 범위다. [Windows 프로세스 수명과 검증](docs/windows-processes.md) · CPU·메모리·DB 자원 상한은 강제하지 않는다.
+Linux·macOS에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 보내고 직접 자식을 수거한다. Windows에서는 워커별 Job Object로 자손 수명을 관리하고, 런타임 소유자 Job이 생성 중 또는 런타임 종료 시 남는 자식을 회수한다. HTTP drain 후 Windows의 Job 종료는 강제 종료이며 앱 종료 hook 실행을 보장하지 않는다. 이외 OS는 직접 자식 종료 범위다. [Unix 프로세스 그룹](docs/process-groups.md) · [Windows 프로세스 수명](docs/windows-processes.md) · CPU·메모리·DB 자원 상한은 강제하지 않는다.
 
 관리 포트는 `127.0.0.1:9090`, 게이트웨이는 `127.0.0.1:8080`이다. Ctrl+C 또는 SIGTERM으로 요청을 drain한 후 워커를 종료한다. `-debug`는 요청별 그룹·결과·소요 시간 로그를 추가한다. 요청 URL, query와 헤더는 런타임 요청 로그에 기록하지 않는다. 워커 stdout/stderr는 그대로 전달되므로 앱 로그의 비밀값은 앱에서 제거해야 한다.
 
@@ -84,6 +84,8 @@ go run ./bench -healthy-group beta -healthy-path /b/work -fault-group alpha -fau
 ## 설정
 
 [isolatex.yaml](isolatex.yaml)은 alpha 워커 2개와 beta 워커 2개를 실행한다. 명령은 YAML 파일 위치가 아닌 **현재 작업 디렉터리**를 기준으로 셸 없이 실행한다. 앱은 런타임이 주입한 `HOST=127.0.0.1`과 `PORT`를 따라 바인딩하고, 설정한 readiness 경로에서 HTTP 200을 반환해야 한다.
+
+관리형 앱은 foreground로 실행한다. 스스로 daemonize하거나 프로세스 그룹을 벗어나는 명령은 일반 관리형 워커의 수명 계약을 따르지 않는다.
 
 - `workers`는 프로세스 개수, `max_concurrent`는 그룹 전체의 전달 중 요청 수다. `queue_size: 0`이면 즉시 수용하거나 거부한다.
 - 모든 그룹의 `max_concurrent + queue_size` 합은 `max_admitted_requests` 이하여야 한다. 이 한도는 시작 시 용량 예약을 검증하는 상한이다. 요청마다 전역 슬롯을 선착순으로 경쟁하지 않으며, 그룹의 남는 용량을 다른 그룹이 빌리지 않는다. 기존에 합계보다 작은 전역 한도를 사용했다면 전역 한도를 올리거나 그룹별 한도를 줄여야 한다. 해당 설정은 이제 시작 오류다.

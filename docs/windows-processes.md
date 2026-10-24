@@ -16,13 +16,13 @@ Job 생성·등록·재개가 실패하면 정지 자식을 종료·수거하고
 
 런타임이 정상 정리 없이 종료되거나 TerminateProcess로 강제 종료돼도 OS가 Job 핸들을 닫아 소속 자손을 종료한다. 한 워커의 정상 재시작은 해당 Job만 종료하며 다른 Job의 워커를 종료하지 않는다.
 
-Windows의 Job 종료는 강제 종료다. 앱의 종료 hook, finally, 버퍼 flush 실행을 보장하지 않는다. Linux의 SIGTERM 후 대기·SIGKILL과 구분해야 한다.
+Windows의 Job 종료는 강제 종료다. 앱의 종료 hook, finally, 버퍼 flush 실행을 보장하지 않는다. Linux·macOS의 SIGTERM 후 대기·SIGKILL과 구분해야 한다.
 
 ## 보장 범위
 
 일반적인 CreateProcess 자손의 수명 관리다. WMI나 외부 서비스가 대신 만든 프로세스는 같은 Job에 속하지 않을 수 있다. 같은 사용자 권한의 악성 프로세스를 막는 샌드박스가 아니며 CPU·메모리·DB quota를 설정하지 않는다. 외부 `upstreams` 서버를 종료하거나 관리하지 않는다.
 
-Linux는 프로세스 그룹, macOS 등 나머지 OS는 현재 직접 자식 종료 범위다. 과거 검증 기록은 당시 구현 범위를 유지한다.
+Linux·macOS는 [프로세스 그룹](process-groups.md)을 사용하며 그 밖의 OS는 현재 직접 자식 종료 범위다. 과거 검증 기록은 당시 구현 범위를 유지한다.
 
 ## 검증
 

@@ -19,6 +19,8 @@ Unix의 전체 테스트에는 `TestNativeCLIShutdownWithActiveAndQueuedRequests
 
 Windows의 전체 supervisor 테스트에는 실제 Job Object 자손·다른 워커 유지·부모 워커 선행 종료·소유자 강제 종료·등록 전 정지 워커 회수·관리형 워커 크래시 후 자손 회수가 포함된다. `go test ./internal/supervisor -run 'TestWindows(Job|OwnerJob|ManagedCrash)' -count=1 -timeout=60s`로 따로 실행한다. 운영 코드는 프로세스 수명 동안 루트 Job 핸들 하나를 유지하며 워커 세대별 Job은 종료 후 닫는다. [Windows 수명 설계](docs/windows-processes.md)를 변경 시 함께 확인한다.
 
+Linux·macOS의 `TestProcessGroupContainsDescendantsAndPreservesAnotherWorker`는 직접 자식 종료가 자손을 남기는 음성 대조와 관리형 프로세스 그룹의 자손 종료·별도 워커 유지를 같은 검사에서 비교한다. `go test ./internal/supervisor -run TestProcessGroupContains -count=10 -timeout=60s`로 실행한다. macOS는 자손 상태 확인에 기본 `ps`를 사용한다. [프로세스 그룹 경계](docs/process-groups.md)를 함께 확인한다.
+
 ## 장애·경합 수정
 
 문제를 일으키는 설정과 장애 순서를 재현하는 테스트를 먼저 작성한다. 임의의 긴 sleep보다 채널·잠금·제어된 시계를 사용해 경합 순서를 고정한다. 취소·만료·종료·재시작 후 실행 슬롯과 프로세스가 회수되는지, 다른 그룹의 용량과 PID가 유지되는지 확인한다.
