@@ -1,0 +1,35 @@
+groups:
+  - name: isolatex
+    rules:
+      - alert: IsolateXRuntimeUnreachable
+        expr: up{job="isolatex"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "IsolateX runtime {{ $labels.instance }} cannot be scraped"
+      - alert: IsolateXGroupUnavailable
+        expr: |
+          (isolatex_ready_workers{job="isolatex"} == 0)
+          and on (job, instance) (up{job="isolatex"} == 1)
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "IsolateX group {{ $labels.group }} on {{ $labels.instance }} has no ready worker"
+      - alert: IsolateXGroupRejections
+        expr: |
+          (
+            sum by (job, instance, group) (rate(isolatex_rejected_requests_total{job="isolatex"}[5m]))
+            /
+            sum by (job, instance, group) (rate(isolatex_requests_total{job="isolatex"}[5m]))
+            > 0.1
+          )
+          and on (job, instance, group)
+          (sum by (job, instance, group) (rate(isolatex_requests_total{job="isolatex"}[5m])) >= 1)
+          and on (job, instance) (up{job="isolatex"} == 1)
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "IsolateX group {{ $labels.group }} on {{ $labels.instance }} rejects over 10% of requests"

@@ -49,6 +49,14 @@ jobs:
           go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - run: go test ./... -count=1 -timeout=90s
       - run: go vet ./...
+      - name: Check group-scoped monitoring rules
+        if: matrix.os == 'ubuntu-latest' && matrix.go == 'stable'
+        run: |
+          mkdir -p .tools/prometheus
+          curl -fsSL --retry 3 -o .tools/prometheus/prometheus.tar.gz https://github.com/prometheus/prometheus/releases/download/v3.15.1/prometheus-3.15.1.linux-amd64.tar.gz
+          echo '6a726885328ad9efebbf36e876ce2fb6225468a71fd1e7ce3ba666d5f4d97a84  .tools/prometheus/prometheus.tar.gz' | sha256sum -c -
+          tar -xzf .tools/prometheus/prometheus.tar.gz -C .tools/prometheus --strip-components=1 prometheus-3.15.1.linux-amd64/promtool
+          bash scripts/check-observability.sh .tools/prometheus/promtool
       - if: runner.os == 'Linux'
         run: go test -race ./... -count=1 -timeout=90s
       - if: runner.os == 'Linux' && matrix.go == 'stable'
