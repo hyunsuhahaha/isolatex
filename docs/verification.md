@@ -202,3 +202,7 @@ Go 모듈 설치는 별도 배포 ldflags·VCS 메타데이터가 없어 `commit
 Windows Go 1.27.3 새 검사 10회 반복과 해당 패키지의 checkptr=2 검사 10회·vet, Go 1.25.0 Windows supervisor 전체 검사가 통과했다. Windows 전체 테스트·vet와 Linux 전체 race·vet도 통과했다. Windows 모듈·호출 수준 govulncheck는 모두 미검출이었다. Windows API로 uintptr를 전달하는 Job 설정 버퍼는 runtime.Pinner로 고정하며 최소 Go 버전과 의존성 버전은 유지했다.
 
 Windows의 종료 범위·Job 중첩 등록 실패·강제 종료 hook 제한·WMI/외부 서비스 자손 제외는 `windows-processes.md`와 SECURITY.md에 명시했다. CPU·메모리 quota 또는 악성 코드 샌드박스를 주장하지 않는다. macOS 등 나머지 OS의 직접 자식 범위는 이 변경으로 확장되지 않는다.
+
+공개 모듈 커밋 `1ffb18ddc45c22cef3c96ba13129f87d98ce3c4e`를 별도 GOBIN에 설치했다. 버전 `v0.0.0-20261024010702-1ffb18ddc45c`와 기본 YAML 검사를 통과한 그 실행 파일을 Windows에서 직접 실행해 네 워커를 준비시켰다. 양방향 smoke에서 보호 요청 각각 41개 성공·PID 유지·장애 워커 재시작이 확인됐다. Ctrl+C 후 `workers_stopped`와 네 PID 종료·8080/9090/9100–9101/9200–9201의 재바인딩을 확인했다.
+
+같은 설치본을 다시 실행해 종료 전부터 런타임의 프로세스 핸들을 별도 관찰자가 유지했다. Ctrl+C 후 실제 CLI 종료 코드는 0이었고 워커·포트가 다시 모두 회수됐다. PowerShell PTY 래퍼는 취소 코드 1을 반환하므로 이를 CLI 종료 코드로 오인하지 않았다. README 공개 설치 스냅샷도 Windows Job 구현이 포함된 이 커밋으로 갱신했다.
