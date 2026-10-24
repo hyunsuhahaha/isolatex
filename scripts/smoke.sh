@@ -31,7 +31,8 @@ if [ "$ready" != true ]; then
   cat bin/smoke.log
   exit 1
 fi
-go run ./bench -url "$gateway_url" -admin "$admin_url"
+go run ./bench -url "$gateway_url" -admin "$admin_url" -expected-runtime-pid "$runtime_pid"
 go run ./bench -url "$gateway_url" -admin "$admin_url" \
+  -expected-runtime-pid "$runtime_pid" \
   -healthy-group beta -healthy-path /b/work \
   -fault-group alpha -fault-path /a/work

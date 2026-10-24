@@ -69,6 +69,8 @@ go run ./bench
 
 Linux에서는 `bash scripts/smoke.sh`로 빌드·시작·준비 확인·검증·종료를 한 번에 수행할 수 있다. 포트 충돌 시 설정을 복사해 포트를 변경하고 `bash scripts/smoke.sh custom.yaml http://127.0.0.1:18080 http://127.0.0.1:19090`처럼 실행한다.
 
+자동 smoke는 직접 시작한 프로세스의 PID를 `-expected-runtime-pid`로 전달한다. 관리 `/status`의 `runtime_pid`가 다르면 앱 요청을 보내기 전에 중단하고 크래시 주입 직전에도 다시 확인한다. gateway/admin URL은 같은 설정에 맞춰 전달해야 한다. 인자를 생략한 수동 `go run ./bench`는 기존 실행 방식을 유지한다.
+
 `go run ./bench`는 beta 풀을 포화시키면서 alpha 요청을 보내고, beta 워커 한 개를 종료한 뒤 새 PID로 재시작되는지 확인한다. 실패하면 비정상 종료하며 JSON 결과에 alpha 요청 P95와 beta 응답별 개수를 출력한다. 기능 smoke test이며 성능 비교 실험 결과는 아니다. 데모 앱의 `crash=1`은 실제로 프로세스를 종료하므로 로컬 실험 전용이다.
 
 alpha와 beta는 동등한 격리 그룹의 예시다. 어떤 그룹도 고정된 업무나 정상/장애 역할을 갖지 않는다. 기본 데모는 beta에 장애를 주입하며, 대상은 다음처럼 바꿀 수 있다.
@@ -125,7 +127,7 @@ circuit_breaker:
 - `GET /healthz`: 런타임 생존.
 - `GET /readyz`: 각 그룹에 준비된 워커가 최소 하나 존재하며 drain 중이 아닌지 확인. 일부 워커가 Failed여도 나머지가 Ready이면 200이다.
 - `GET /readyz/{group}`: 해당 그룹에 준비된 워커가 있고 drain 중이 아니면 200, 해당 그룹이 준비되지 않았거나 drain 중이면 503, 없는 그룹이면 404다. 예: `/readyz/alpha`. 다른 그룹의 장애는 이 응답에 영향을 주지 않는다.
-- `GET /status`: 그룹별 활성·대기 요청, 차단기 상태, 워커 PID·상태·재시작·Health Check 수. 인증이 없으므로 관리 포트는 loopback에만 바인딩한다.
+- `GET /status`: `runtime_pid`와 그룹별 활성·대기 요청, 차단기 상태, 워커 PID·상태·재시작·Health Check 수. 인증이 없으므로 관리 포트는 loopback에만 바인딩한다.
 - `GET /metrics`: 요청·거부 카운터, 실행·대기·준비 워커 게이지, 차단기 상태·전이 수, Health Check·재시작 카운터, 요청·큐 지연시간 histogram과 Go/프로세스 지표.
 
 외부 헬스체크를 경로별로 구성한다면 해당 경로의 그룹 준비 상태를 사용한다. 준비 상태 엔드포인트는 loopback 관리 포트에 있으므로 같은 호스트의 검사 에이전트나 접근 제어된 프록시를 통해 연계한다. 전역 `/readyz`는 모든 그룹을 합친 상태이므로 한 그룹 장애로 전체 게이트웨이를 제외하는 설정이 될 수 있다. 준비 상태는 신규 전달이 가능한 워커의 존재를 뜻하며 포화·Circuit Breaker 상태나 모든 앱 요청의 성공을 보장하지 않는다.
