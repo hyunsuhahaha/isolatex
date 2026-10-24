@@ -34,7 +34,7 @@ Linux는 위임된 부모의 `cgroup.subtree_control`에 `+pids`가 활성화되
 
 `/status`의 `worker_tasks_max`, `worker_processes_max`와 Prometheus의 `isolatex_worker_tasks_limit{group=...}`, `isolatex_worker_processes_limit{group=...}`는 설정된 워커당 상한이다. 0은 미설정이며 현재 사용량이나 초과 횟수가 아니다. 커널·상위 Job/cgroup의 더 작은 상한은 여전히 적용된다. CPU 시간, 파일 디스크립터, DB 연결을 제한하지 않으며 같은 권한의 악성 앱을 가두는 샌드박스가 아니다.
 
-검증은 최대 48개 자손만 만드는 유한한 3세대 트리로 수행한다. 무제한 대조는 48개 모두 생성하며, 제한 시 자손의 생성 거부·정리 후 재요청·워커 PID 유지·보호 경로의 연속 HTTP 성공을 확인한다. 메모리 한도와의 병용도 검사한다. Linux는 별도로 `LockOSThread`를 사용해 실제 스레드 생성을 한도에 도달시킨 후 `pids.events`의 커널 거부 기록을 확인한다. 컨트롤러 미위임 시 앱이 실행되지 않고 새 cgroup도 남지 않아야 한다.
+검증은 최대 48개 자손만 만드는 유한한 3세대 트리로 수행한다. 무제한 대조는 48개 모두 생성하며, 제한 시 자손의 생성 거부·정리 후 재요청·보호 경로의 연속 HTTP 성공과 PID 유지를 확인한다. Windows의 오류를 처리한 워커는 같은 PID를 유지한다. Linux Go 런타임이 스레드 부족으로 종료하면 해당 워커의 복구를 확인하며, HTTP 실패만으로 통과시키지 않고 커널 pids 거부 기록을 요구한다. 메모리 한도와의 병용도 검사한다. Linux는 별도로 `LockOSThread`를 사용해 실제 스레드 생성을 한도에 도달시킨 후 `pids.events`의 커널 거부 기록을 확인한다. 컨트롤러 미위임 시 앱이 실행되지 않고 새 cgroup도 남지 않아야 한다.
 
 ```sh
 sudo bash scripts/check-memory-linux.sh "$(id -un)" "$(command -v go)"
