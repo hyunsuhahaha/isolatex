@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -193,8 +194,10 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = rc.SetReadDeadline(deadline)
 	_ = rc.SetWriteDeadline(deadline)
 	r = r.WithContext(context.WithValue(ctx, dialRequestContextKey{}, ctx))
-	r.Body = http.MaxBytesReader(w, r.Body, g.cfg.MaxBodyBytes)
+	body := &requestBody{ReadCloser: http.MaxBytesReader(w, r.Body, g.cfg.MaxBodyBytes)}
+	r.Body = body
 	tracked := &trackingWriter{ResponseWriter: w}
+	backendFailed := false
 	outcome = "success"
 	result = breaker.Success
 	proxy := httputil.ReverseProxy{
@@ -214,6 +217,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return errors.New("unsupported stream")
 			}
 			if resp.StatusCode >= 500 {
+				backendFailed = true
 				result = breaker.Failure
 				outcome = "upstream_5xx"
 			} else if resp.StatusCode >= 400 {
@@ -251,6 +255,15 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		},
 	}
+	defer func() {
+		// The request budget also covers receiving the client's body. A
+		// confirmed downstream read timeout is not an upstream outage. Keep
+		// a 5xx that the backend actually returned as failure evidence.
+		if outcome == "timeout" && body.timedOut.Load() && !backendFailed {
+			outcome = "request_body_timeout"
+			result = breaker.Ignored
+		}
+	}()
 	defer func() {
 		if v := recover(); v != nil {
 			result = breaker.Failure
@@ -291,6 +304,22 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			result = breaker.Failure
 		}
 	}
+}
+
+type requestBody struct {
+	io.ReadCloser
+	timedOut atomic.Bool
+}
+
+func (b *requestBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil && err != io.EOF {
+		var timeout net.Error
+		if errors.As(err, &timeout) && timeout.Timeout() {
+			b.timedOut.Store(true)
+		}
+	}
+	return n, err
 }
 
 type trackingWriter struct {

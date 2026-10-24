@@ -54,3 +54,11 @@ HTTP Transport는 연결 재사용을 위해 요청 취소와 별개로 연결 �
 공용 max_connections는 downstream 수용 연결 한도다. upstream 연결의 그룹별 MaxConnsPerHost는 max_concurrent이며 유휴 연결의 그룹 전체 상한도 max_concurrent다. 여러 워커 주소의 진행 중 연결 시도 전체를 max_concurrent 하나로 제한하는 별도 전역 세마포어는 없다. 이번 정책은 끝난 요청의 연결 시도가 남는 시간을 줄이며 호스트 전체 FD 예약이나 DNS resolver의 내부 OS 작업까지 즉시 회수한다는 보장은 아니다. 별도 서버에 Gateway를 포함해 커스텀 dial 함수를 사용할 경우에도 context 취소를 따라야 한다.
 
 회귀 검사는 네 개의 실제 TCP 대상에 소켓을 연결한 뒤 dial 완료를 의도적으로 지연시킨다. 요청 기한이 끝나도 연결 시도가 계속되는 대조 구현에서는 활성 4개가 남았다. 수정 구현은 요청 기한과 클라이언트 취소 각각에서 연결 시도를 회수하고 다른 경로의 HTTP 200·요청 슬롯 회수를 확인한다. 별도로 시간 초과 응답의 Connection: close와 이후 정상 요청을 반복 검사한다.
+
+## 요청 본문 시간 초과와 차단기
+
+그룹 request_timeout에는 클라이언트 본문을 받는 시간도 포함된다. Gateway가 본문 읽기에서 실제 timeout 오류를 관측하고 전체 요청도 시간 초과로 끝난 경우 `isolatex_requests_total`과 요청 지연시간의 outcome을 `request_body_timeout`으로 기록한다. HTTP 응답은 기존 504/timeout을 유지한다. 이 결과는 upstream 차단기의 성공·실패 표본에서 모두 제외하므로 본문을 보내다 멈춘 클라이언트가 정상 upstream의 차단기를 여는 것을 막는다. Half-open 시험의 점유도 기존 Ignored 완료 정책에 따라 반환한다.
+
+본문이 모두 수신된 뒤 upstream이 응답하지 않는 시간 초과는 기존 실패 표본이다. 실제 upstream 5xx가 확인된 요청도 그 뒤의 본문 읽기 시간 초과 때문에 실패 증거를 지우지 않는다. 본문이 덜 왔다는 추측만으로 분류하지 않고 본문 reader가 반환한 timeout을 확인한다. 이 구분은 요청 예산이나 연결 종료를 늦추지 않으며 실행·대기 슬롯 회수 정책도 유지한다.
+
+운영 시 `request_body_timeout` 증가는 앞단 프록시·업로드 클라이언트·전송 중단을 함께 확인한다. 기존 `timeout` 및 `upstream_5xx`와 분리해 살펴보고 한 그룹의 모든 시간 초과를 backend 장애로 합산하지 않는다.

@@ -66,15 +66,16 @@ func TestResponseBudgetResetsForKeepAlive(t *testing.T) {
 		_, _ = io.WriteString(w, "ok")
 	}), func(c *config.Config) {
 		c.RoutingProbePrefix = "/_isolatex/route"
-		b := c.Bulkheads["isolated"]
-		b.RequestTimeout = 200 * time.Millisecond
-		c.Bulkheads["isolated"] = b
 	})
-	client := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil, MaxIdleConnsPerHost: 1}}
+	client := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil, MaxIdleConnsPerHost: 1}}
 	defer client.CloseIdleConnections()
 	for i, path := range []string{"/api/fault", "/_isolatex/route/normal", "/api/fault"} {
-		if i > 0 {
-			time.Sleep(300 * time.Millisecond)
+		if i == 1 {
+			// Pass the fixture's two-second group deadline without imposing a
+			// 200ms cold-start performance requirement on shared CI runners.
+			time.Sleep(2100 * time.Millisecond)
+		} else if i == 2 {
+			time.Sleep(350 * time.Millisecond)
 		}
 		reused := false
 		req, err := http.NewRequest(http.MethodGet, s.URL+path, nil)

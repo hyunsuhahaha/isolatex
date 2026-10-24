@@ -58,3 +58,5 @@ increase(isolatex_dropped_log_records_total{job="isolatex"}[5m])
 ## 규칙 검사
 
 [Prometheus 규칙 테스트](https://prometheus.io/docs/prometheus/latest/configuration/unit_testing_rules/)로 한 그룹의 장애와 다른 그룹의 생존, 런타임 수집 실패, 그룹별 거부 비율, 무부하와 짧은 준비 상태 실패를 검사한다. CI는 SHA-256을 고정한 promtool 3.15.1을 사용한다. 개발 환경에서는 `bash scripts/check-observability.sh /path/to/promtool`로 동일 검사를 실행할 수 있다.
+
+`outcome="request_body_timeout"`은 Gateway가 클라이언트 본문 읽기에서 확인한 시간 초과다. HTTP 504는 유지하지만 upstream 차단기의 실패 표본에서 제외한다. 본문 수신 완료 후의 backend 시간 초과와 확인된 5xx는 기존 실패 정책을 따른다. 업로드 클라이언트와 앞단 전송 중단을 조사할 때 이 결과를 별도로 확인한다.
