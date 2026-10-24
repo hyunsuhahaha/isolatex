@@ -253,3 +253,44 @@ func TestTasksBudgetMissingControllerDoesNotExecuteWorker(t *testing.T) {
 		}
 	}
 }
+
+func TestCPUBudgetMissingControllerDoesNotExecuteWorker(t *testing.T) {
+	parent := os.Getenv("ISOLATEX_TEST_CGROUP_PARENT")
+	if parent == "" {
+		t.Skip("requires delegation")
+	}
+	// Do not enable cpu for this subtree; the private worker must fail closed.
+	undelegated, err := os.MkdirTemp(parent, "isolatex-test-nocpu-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Remove(undelegated); err != nil {
+			t.Error(err)
+		}
+	}()
+	marker := filepath.Join(t.TempDir(), "executed")
+	cmd := exec.Command("sh", "-c", `printf started > "$1"`, "isolatex-marker", marker)
+	control, err := startManagedProcessWithResources(cmd, &config.Resources{CPUMillicores: 250, CgroupParent: undelegated})
+	if err == nil {
+		control.signal(true)
+		_ = cmd.Wait()
+		_ = control.close()
+		t.Fatal("missing cpu controller silently ignored")
+	}
+	if !strings.Contains(err.Error(), "cpu.max") {
+		t.Fatalf("unexpected rejection: %v", err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("worker executed without budget: %v", err)
+	}
+	entries, err := os.ReadDir(undelegated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			t.Fatalf("failed start leaked cgroup %s", entry.Name())
+		}
+	}
+}

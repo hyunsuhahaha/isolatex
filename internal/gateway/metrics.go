@@ -1,8 +1,9 @@
 package gateway
 
 import (
-	"github.com/hyunsuhahaha/isolatex/internal/config"
 	"time"
+
+	"github.com/hyunsuhahaha/isolatex/internal/config"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -22,7 +23,7 @@ func (b *group) workerResources() config.Resources {
 	return config.Resources{}
 }
 
-func (b *group) workerMemoryLimit() int64 { return b.workerResources().MemoryMaxBytes }
+func (b *group) workerMemoryLimit() int64 { return int64(b.workerResources().MemoryMaxBytes) }
 
 func newRegistry() *prometheus.Registry {
 	r := prometheus.NewRegistry()
@@ -68,6 +69,8 @@ func (b *group) registerMetrics(r *prometheus.Registry) {
 	gauge("isolatex_worker_memory_limit_bytes", "Configured per-worker and descendant memory budget; zero disables. Accounting is platform-specific.", func() float64 { return float64(b.workerMemoryLimit()) })
 	gauge("isolatex_worker_tasks_limit", "Configured per-worker Linux task limit including descendant threads; zero disables.", func() float64 { return float64(b.workerResources().TasksMax) })
 	gauge("isolatex_worker_processes_limit", "Configured per-worker Windows active process limit including descendants; zero disables.", func() float64 { return float64(b.workerResources().ProcessesMax) })
+	gauge("isolatex_worker_cpu_millicores_limit", "Configured per-worker Linux CPU bandwidth in millicores; zero disables.", func() float64 { return float64(b.workerResources().CPUMillicores) })
+	gauge("isolatex_worker_cpu_percent_limit", "Configured per-worker Windows Job CPU rate in percent; zero disables.", func() float64 { return float64(b.workerResources().CPUPercent) })
 	counter := func(name, help string, f func() float64) {
 		r.MustRegister(prometheus.NewCounterFunc(prometheus.CounterOpts{Name: name, Help: help, ConstLabels: labels}, f))
 	}

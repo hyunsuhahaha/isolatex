@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 const validConfig = `version: 1
@@ -173,6 +175,17 @@ func TestDecodeValidatesTaskResources(t *testing.T) {
 		{"processes_max: 4", "windows"},
 		{"tasks_max: 32, memory_max_bytes: 67108864, cgroup_parent: /sys/fs/cgroup/isolatex", "linux"},
 		{"processes_max: 4, memory_max_bytes: 67108864", "windows"},
+
+		{"cpu_millicores: 250, cgroup_parent: /sys/fs/cgroup/isolatex", "linux"},
+		{"cpu_millicores: 1000, tasks_max: 128, memory_max_bytes: 268435456, cgroup_parent: /sys/fs/cgroup/isolatex", "linux"},
+		{"cpu_percent: 5", "windows"},
+		{"cpu_percent: 5, processes_max: 8, memory_max_bytes: 268435456", "windows"},
+		{"cpu_millicores: -1", ""}, {"cpu_millicores: 9, cgroup_parent: /sys/fs/cgroup/isolatex", ""},
+		{"cpu_millicores: 92233720368547759, cgroup_parent: /sys/fs/cgroup/isolatex", ""},
+		{"cpu_percent: -1", ""}, {"cpu_percent: 101", ""},
+		{"cpu_percent: 0", ""}, {"cpu_millicores: 0", ""},
+		{"cpu_millicores: 250, cpu_percent: 5, cgroup_parent: /sys/fs/cgroup/isolatex", ""},
+		{"cpu_millicore: 250", ""},
 		{"tasks_max: -1", ""}, {"processes_max: -1", ""},
 		{"processes_max: 4294967296", ""}, {"tasks_max: 0", ""},
 		{"tasks_max: 32", ""},
@@ -186,5 +199,42 @@ func TestDecodeValidatesTaskResources(t *testing.T) {
 				t.Fatalf("platform=%s error=%v", runtime.GOOS, err)
 			}
 		})
+	}
+}
+
+func TestResourceLimitsRequireIntegerScalars(t *testing.T) {
+	for _, field := range []string{"memory_max_bytes", "tasks_max", "processes_max", "cpu_millicores", "cpu_percent"} {
+		for _, value := range []string{"0.9", "10.0", "true", `"10"`, ".nan", ".inf"} {
+			t.Run(field+"/"+value, func(t *testing.T) {
+				var resources Resources
+				decoder := yaml.NewDecoder(strings.NewReader(field + ": " + value + "\n"))
+				decoder.KnownFields(true)
+				if err := decoder.Decode(&resources); err == nil {
+					t.Fatalf("noninteger resource limit accepted: %s=%s", field, value)
+				}
+			})
+		}
+	}
+	for _, input := range []string{
+		"cpu_millicores: &limit 250\ntasks_max: *limit\n",
+		"<<: &limits {cpu_millicores: 250}\ntasks_max: 128\n",
+	} {
+		var resources Resources
+		decoder := yaml.NewDecoder(strings.NewReader(input))
+		decoder.KnownFields(true)
+		if err := decoder.Decode(&resources); err != nil {
+			t.Fatalf("integer aliases/merge rejected: %v", err)
+		}
+	}
+	for _, input := range []string{
+		"cpu_millicores: &limit 0.9\ntasks_max: *limit\n",
+		"<<: &limits {cpu_millicores: 0.9}\nmemory_max_bytes: 67108864\n",
+	} {
+		var resources Resources
+		decoder := yaml.NewDecoder(strings.NewReader(input))
+		decoder.KnownFields(true)
+		if err := decoder.Decode(&resources); err == nil {
+			t.Fatal("noninteger alias/merge accepted")
+		}
 	}
 }

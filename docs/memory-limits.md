@@ -33,7 +33,7 @@ Windows는 한도를 설정한 Job에 정지 워커를 등록한 뒤 실행한�
 
 cgroup v2의 memory controller와 `memory.swap.max`, `memory.oom.group`, `cgroup.kill`, `clone3`의 cgroup FD가 필요하다. 부모 경로는 관리자가 위임한 디렉터리이며 memory controller를 자식에 활성화해 두어야 한다. 런타임도 같은 위임 범위의 별도 자식 cgroup에서 실행해야 생성 시 이동 권한을 만족한다. 일반 임시 폴더나 다른 위임 범위의 경로는 사용할 수 없다. IsolateX는 호스트 전역 컨트롤러 정책을 바꾸지 않는다.
 
-[예제 service](../examples/memory/isolatex.service)는 systemd 254 이상에서 `Delegate=memory pids`와 `DelegateSubgroup=manager`로 이를 구성한다. 운영 계정·설치/설정 경로·service 이름을 실제 환경에 맞춰 바꾼다. service 이름이나 slice를 바꾸면 YAML의 `cgroup_parent`와 `ExecStartPre` 경로도 함께 바꿔야 한다. [systemd 위임 계약](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html#DelegateSubgroup=)을 참고한다.
+[예제 service](../examples/memory/isolatex.service)는 systemd 254 이상에서 `Delegate=cpu memory pids`와 `DelegateSubgroup=manager`로 이를 구성한다. 운영 계정·설치/설정 경로·service 이름을 실제 환경에 맞춰 바꾼다. service 이름이나 slice를 바꾸면 YAML의 `cgroup_parent`와 `ExecStartPre` 경로도 함께 바꿔야 한다. [systemd 위임 계약](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html#DelegateSubgroup=)을 참고한다.
 
 예제의 `OOMPolicy=continue`는 워커 OOM을 서비스 전체 중단으로 확대하지 않기 위한 설정이다. `stop`·`kill` 정책이나 상위 서비스 매니저 정책이 전체 런타임을 종료하면 보호 그룹도 영향을 받는다. [systemd OOM 정책](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html#OOMPolicy=)과 호스트 정책을 함께 검토한다.
 
@@ -51,4 +51,4 @@ sudo bash scripts/check-memory-linux.sh "$(id -un)" "$(command -v go)"
 
 이 도구는 고유한 임시 cgroup만 만들고, Go 테스트와 앱은 지정한 일반 계정으로 실행한다. 호스트 전역 컨트롤러를 변경하지 않는다. 마지막에는 자신이 만든 빈 cgroup 디렉터리만 제거하며 남은 자손/디렉터리가 있으면 실패한다.
 
-제한 없는 대조에서는 부모 96MiB 또는 부모 80MiB+자손 176MiB 할당이 성공한다. 제한 검사에서는 각각 트리 한도 64MiB·256MiB를 적용해 실패·재시작과 보호 그룹의 연속 HTTP 응답·PID 유지를 확인한다. 이 기능은 CPU·공유 DB 상한이나 호스트 전체 OOM 방지를 제공하지 않는다.
+제한 없는 대조에서는 부모 96MiB 또는 부모 80MiB+자손 176MiB 할당이 성공한다. 제한 검사에서는 각각 트리 한도 64MiB·256MiB를 적용해 실패·재시작과 보호 그룹의 연속 HTTP 응답·PID 유지를 확인한다. 이 기능은 공유 DB 상한이나 호스트 전체 OOM 방지를 제공하지 않는다. [CPU 상한](cpu-limits.md)은 별도로 선택할 수 있다.

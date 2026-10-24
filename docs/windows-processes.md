@@ -20,7 +20,7 @@ Windows의 Job 종료는 강제 종료다. 앱의 종료 hook, finally, 버퍼 f
 
 ## 보장 범위
 
-일반적인 CreateProcess 자손의 수명 관리다. WMI나 외부 서비스가 대신 만든 프로세스는 같은 Job에 속하지 않을 수 있다. 선택한 [메모리 예산](memory-limits.md)은 같은 워커 Job의 committed memory 합에 적용한다. CPU·DB quota나 같은 사용자 권한의 악성 프로세스를 막는 샌드박스는 제공하지 않는다. 외부 `upstreams` 서버를 종료하거나 관리하지 않는다.
+일반적인 CreateProcess 자손의 수명 관리다. WMI나 외부 서비스가 대신 만든 프로세스는 같은 Job에 속하지 않을 수 있다. 선택한 [메모리 예산](memory-limits.md)은 같은 워커 Job의 committed memory 합에 적용한다. 선택적 [CPU 상한](cpu-limits.md)은 같은 워커 Job에 적용한다. DB quota나 같은 사용자 권한의 악성 프로세스를 막는 샌드박스는 제공하지 않는다. 외부 `upstreams` 서버를 종료하거나 관리하지 않는다.
 
 Linux·macOS는 [프로세스 그룹](process-groups.md)을 사용하며 그 밖의 OS는 현재 직접 자식 종료 범위다. 과거 검증 기록은 당시 구현 범위를 유지한다.
 

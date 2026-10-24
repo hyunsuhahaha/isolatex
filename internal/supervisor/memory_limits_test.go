@@ -48,7 +48,7 @@ func TestWorkerMemoryBudgetContainsAllocationFailure(t *testing.T) {
 			g.Process.Env["MEMORY_CHILD_PID_FILE"] = childFile
 			g.RequestTimeout = 3 * time.Second
 			if limited {
-				g.Process.Resources = &config.Resources{MemoryMaxBytes: scenario.budget, CgroupParent: parent}
+				g.Process.Resources = &config.Resources{MemoryMaxBytes: config.ResourceLimit(scenario.budget), CgroupParent: parent}
 			}
 			c.Bulkheads["isolated"] = g
 			if err := c.Validate(); err != nil {

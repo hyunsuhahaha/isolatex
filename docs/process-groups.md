@@ -10,7 +10,7 @@
 
 신호 전송과 자손의 커널 상태 전환은 비동기다. 직접 자식은 Wait로 수거하고, 검사는 자손의 실제 실행 중단을 별도의 유한 대기로 확인한다.
 
-앱은 foreground로 실행해야 한다. 스스로 daemonize하거나 setsid/setpgid로 그룹을 벗어난 프로세스는 프로세스 그룹 경계로 관리되지 않는다. Linux에서 선택적 [cgroup 메모리 예산](memory-limits.md)을 사용하면 cgroup 내부 자손도 강제 종료 대상이다. 런타임 자체가 SIGKILL로 종료되거나 호스트가 실패하면 정리 코드 실행을 보장하지 않는다. CPU·DB quota나 악성 코드 샌드박스는 제공하지 않는다.
+앱은 foreground로 실행해야 한다. 스스로 daemonize하거나 setsid/setpgid로 그룹을 벗어난 프로세스는 프로세스 그룹 경계로 관리되지 않는다. Linux에서 선택적 [cgroup 메모리 예산](memory-limits.md)을 사용하면 cgroup 내부 자손도 강제 종료 대상이다. 런타임 자체가 SIGKILL로 종료되거나 호스트가 실패하면 정리 코드 실행을 보장하지 않는다. 선택적 [CPU quota](cpu-limits.md)는 지원하며 DB quota나 악성 코드 샌드박스는 제공하지 않는다.
 
 ## 검증
 

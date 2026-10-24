@@ -165,8 +165,8 @@ func TestWorkerTaskBudgetContainsDescendantSpawns(t *testing.T) {
 			for name, g := range c.Bulkheads {
 				var tasks, processes int64
 				if g.Process.Resources != nil {
-					tasks = g.Process.Resources.TasksMax
-					processes = g.Process.Resources.ProcessesMax
+					tasks = int64(g.Process.Resources.TasksMax)
+					processes = int64(g.Process.Resources.ProcessesMax)
 				}
 				got := status.Groups[name]
 				if got.Tasks != tasks || got.Processes != processes {

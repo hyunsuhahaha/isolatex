@@ -75,6 +75,19 @@ func newWorkerJob(resources *config.Resources) (windows.Handle, error) {
 		_ = windows.CloseHandle(job)
 		return 0, fmt.Errorf("configure lifetime job: %w", err)
 	}
+	if resources != nil && resources.CPUPercent > 0 {
+		// Native structure is two DWORDs; the second is the CpuRate union arm.
+		const enable, hardCap = 0x1, 0x4
+		rate := struct{ ControlFlags, CPURate uint32 }{enable | hardCap, uint32(resources.CPUPercent) * 100}
+		var ratePinned runtime.Pinner
+		ratePinned.Pin(&rate)
+		_, err := windows.SetInformationJobObject(job, windows.JobObjectCpuRateControlInformation, uintptr(unsafe.Pointer(&rate)), uint32(unsafe.Sizeof(rate)))
+		ratePinned.Unpin()
+		if err != nil {
+			_ = windows.CloseHandle(job)
+			return 0, fmt.Errorf("configure worker CPU hard cap: %w", err)
+		}
+	}
 	return job, nil
 }
 

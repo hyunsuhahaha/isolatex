@@ -44,11 +44,15 @@ func newWorkerCgroup(resources *config.Resources) (*workerCgroup, error) {
 	type setting struct{ name, value string }
 	var settings []setting
 	if resources.MemoryMaxBytes > 0 {
-		settings = append(settings, setting{"memory.max", strconv.FormatInt(resources.MemoryMaxBytes, 10)},
+		settings = append(settings, setting{"memory.max", strconv.FormatInt(int64(resources.MemoryMaxBytes), 10)},
 			setting{"memory.swap.max", "0"}, setting{"memory.oom.group", "1"})
 	}
 	if resources.TasksMax > 0 {
-		settings = append(settings, setting{"pids.max", strconv.FormatInt(resources.TasksMax, 10)})
+		settings = append(settings, setting{"pids.max", strconv.FormatInt(int64(resources.TasksMax), 10)})
+	}
+	if resources.CPUMillicores > 0 {
+		// Fixed 100ms period: 1000 millicores means one full logical CPU.
+		settings = append(settings, setting{"cpu.max", strconv.FormatInt(int64(resources.CPUMillicores)*100, 10) + " 100000"})
 	}
 	for _, setting := range settings {
 		if err := os.WriteFile(filepath.Join(path, setting.name), []byte(setting.value), 0600); err != nil {
