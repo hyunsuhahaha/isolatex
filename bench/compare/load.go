@@ -18,18 +18,27 @@ type latency struct {
 	P99 float64 `json:"p99"`
 }
 
+type httpOutcome struct {
+	Count       int      `json:"count"`
+	RatioOfSent float64  `json:"ratio_of_sent"`
+	LatencyMS   *latency `json:"latency_ms"`
+}
+
 type summary struct {
-	Scheduled           int         `json:"scheduled"`
-	Sent                int         `json:"sent"`
-	GeneratorMissed     int         `json:"generator_missed"`
-	GeneratorLateMeanMS float64     `json:"generator_late_mean_ms"`
-	GeneratorLateMaxMS  float64     `json:"generator_late_max_ms"`
-	TransportErrors     int         `json:"transport_errors"`
-	Statuses            map[int]int `json:"statuses"`
-	Successful          int         `json:"successful"`
-	SentPerSecond       float64     `json:"sent_per_phase_second"`
-	SuccessRatio        float64     `json:"success_ratio_of_sent"`
-	SuccessLatencyMS    *latency    `json:"successful_latency_ms,omitempty"`
+	Scheduled               int                 `json:"scheduled"`
+	Sent                    int                 `json:"sent"`
+	GeneratorMissed         int                 `json:"generator_missed"`
+	GeneratorLateMeanMS     float64             `json:"generator_late_mean_ms"`
+	GeneratorLateMaxMS      float64             `json:"generator_late_max_ms"`
+	TransportErrors         int                 `json:"transport_errors"`
+	Statuses                map[int]int         `json:"statuses"`
+	Successful              int                 `json:"successful"`
+	SentPerSecond           float64             `json:"sent_per_phase_second"`
+	SuccessRatio            float64             `json:"success_ratio_of_sent"`
+	SuccessLatencyMS        *latency            `json:"successful_latency_ms,omitempty"`
+	HTTPOutcomes            map[int]httpOutcome `json:"http_outcomes"`
+	TransportErrorRatio     float64             `json:"transport_error_ratio_of_sent"`
+	TransportErrorLatencyMS *latency            `json:"transport_error_latency_ms,omitempty"`
 }
 
 type samples struct {
@@ -37,6 +46,8 @@ type samples struct {
 	scheduled, sent, missed, errors int
 	statuses                        map[int]int
 	success                         []time.Duration
+	byStatus                        map[int][]time.Duration
+	transportErrors                 []time.Duration
 	lateTotal, lateMax              time.Duration
 }
 
@@ -44,6 +55,14 @@ func (s *samples) summarize(duration time.Duration) summary {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r := summary{Scheduled: s.scheduled, Sent: s.sent, GeneratorMissed: s.missed, TransportErrors: s.errors, Statuses: s.statuses, Successful: len(s.success)}
+	r.HTTPOutcomes = make(map[int]httpOutcome, len(s.byStatus))
+	for status, values := range s.byStatus {
+		outcome := httpOutcome{Count: len(values), LatencyMS: summarizeLatency(values)}
+		if s.sent > 0 {
+			outcome.RatioOfSent = float64(len(values)) / float64(s.sent)
+		}
+		r.HTTPOutcomes[status] = outcome
+	}
 	if s.scheduled > 0 {
 		r.GeneratorLateMeanMS = float64(s.lateTotal) / float64(s.scheduled) / float64(time.Millisecond)
 	}
@@ -53,16 +72,23 @@ func (s *samples) summarize(duration time.Duration) summary {
 	}
 	if s.sent > 0 {
 		r.SuccessRatio = float64(len(s.success)) / float64(s.sent)
+		r.TransportErrorRatio = float64(s.errors) / float64(s.sent)
 	}
-	if len(s.success) > 0 {
-		values := append([]time.Duration(nil), s.success...)
-		sort.Slice(values, func(i, j int) bool { return values[i] < values[j] })
-		quantile := func(p float64) float64 {
-			return float64(values[int(math.Ceil(float64(len(values))*p))-1]) / float64(time.Millisecond)
-		}
-		r.SuccessLatencyMS = &latency{P50: quantile(.50), P95: quantile(.95), P99: quantile(.99)}
-	}
+	r.SuccessLatencyMS = summarizeLatency(s.success)
+	r.TransportErrorLatencyMS = summarizeLatency(s.transportErrors)
 	return r
+}
+
+func summarizeLatency(samples []time.Duration) *latency {
+	if len(samples) == 0 {
+		return nil
+	}
+	values := append([]time.Duration(nil), samples...)
+	sort.Slice(values, func(i, j int) bool { return values[i] < values[j] })
+	quantile := func(p float64) float64 {
+		return float64(values[int(math.Ceil(float64(len(values))*p))-1]) / float64(time.Millisecond)
+	}
+	return &latency{P50: quantile(.50), P95: quantile(.95), P99: quantile(.99)}
 }
 
 type collectedPhase struct {
@@ -227,9 +253,14 @@ func generate(ctx context.Context, client *http.Client, path string, rate int, s
 			defer samples.mu.Unlock()
 			if err != nil {
 				samples.errors++
+				samples.transportErrors = append(samples.transportErrors, elapsed)
 				return
 			}
 			samples.statuses[resp.StatusCode]++
+			if samples.byStatus == nil {
+				samples.byStatus = make(map[int][]time.Duration)
+			}
+			samples.byStatus[resp.StatusCode] = append(samples.byStatus[resp.StatusCode], elapsed)
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 				samples.success = append(samples.success, elapsed)
 			}
