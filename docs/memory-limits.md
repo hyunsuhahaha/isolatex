@@ -37,7 +37,7 @@ cgroup v2의 memory controller와 `memory.swap.max`, `memory.oom.group`, `cgroup
 
 예제의 `OOMPolicy=continue`는 워커 OOM을 서비스 전체 중단으로 확대하지 않기 위한 설정이다. `stop`·`kill` 정책이나 상위 서비스 매니저 정책이 전체 런타임을 종료하면 보호 그룹도 영향을 받는다. [systemd OOM 정책](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html#OOMPolicy=)과 호스트 정책을 함께 검토한다.
 
-정상·강제 워커 종료는 Linux cgroup의 자손까지 종료하고 해당 세대의 빈 디렉터리를 제거한다. 정리 실패는 `worker_resource_cleanup_failed`로 기록한다. 런타임 SIGKILL 이후 cgroup 정리는 systemd의 전체 제어 그룹 종료 정책 등 운영 환경이 담당한다. 앱이 임의로 cgroup 구조를 만들거나 같은 권한으로 제한을 바꾸는 행위를 막는 보안 샌드박스는 아니다.
+정상·강제 워커 종료는 Linux cgroup의 자손까지 종료하고 해당 세대의 빈 디렉터리를 제거한다. 정리 실패는 `worker_resource_cleanup_failed`로 기록하고 해당 슬롯을 `failed`로 멈춘다. 이전 자원의 종료를 확인하지 못한 상태에서 새 세대의 예산을 겹쳐 만들지 않는다. 런타임 SIGKILL 이후 cgroup 정리는 systemd의 전체 제어 그룹 종료 정책 등 운영 환경이 담당한다. 앱이 임의로 cgroup 구조를 만들거나 같은 권한으로 제한을 바꾸는 행위를 막는 보안 샌드박스는 아니다.
 
 ## 관측과 검증
 
