@@ -343,3 +343,5 @@ Start는 포트 확인과 모든 워커·정적 readiness 감시의 등록을 �
 새 실제 CLI 검사는 공용 한도 2에 헤더 수신 전 연결·keep-alive 연결을 하나씩 채운다. 세 번째 요청은 응답을 받지 못하고 대기하는 동안 관리 health/readiness/status/metrics는 응답한다. keep-alive 연결을 닫으면 대기 요청은 200으로 완료되고 전부 닫으면 공용 연결 gauge가 0으로 회수된다. 상한 구현을 limit+1로 느슨하게 한 대조 검사에서는 실제 초과 요청이 처리돼 request above the connection budget was served로 실패했다. 복구한 구현은 통과했다. 리스너 단독 검사는 포화 상태 Close의 Accept 해제·기존 연결 읽기 유지·중복 Close의 예산 회수를 검증한다.
 
 로컬 검증: Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet가 통과했다. 별도 연결 운영 문서에 기본값, backlog 대기, HTTP 503 미보장, FD 여유와 남는 공용 경계를 기록했다.
+
+Windows 최소 Go 1.25.0의 실제 CLI·리스너·설정 검사도 3회 통과했다. 공개 커밋 e225acbb1cc213a5db12f9092ecaad7e0c9deb58을 Windows·Linux에서 각각 go install했고, v0.0.0-20261024135231-e225acbb1cc2 버전과 max_connections가 포함된 기본 설정의 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
