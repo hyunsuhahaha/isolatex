@@ -46,7 +46,7 @@ CPU 상한은 CPU 예약이나 보호 그룹의 처리량 보장이 아니다. �
 
 `/status`의 `worker_cpu_millicores`, `worker_cpu_percent`와 Prometheus의 `isolatex_worker_cpu_millicores_limit{group=...}`, `isolatex_worker_cpu_percent_limit{group=...}`는 설정된 워커당 상한이다. 0은 미설정이며 실제 CPU 사용률·throttling 게이지가 아니다.
 
-검사는 부모와 실제 자손이 각각 유한한 시간 동안 CPU를 소모하는 작업을 사용한다. CPU 무제한 대조·CPU 단독 제한·메모리 및 생성 수 병용을 검사한다. Linux는 부모·자손의 동일 cgroup/quota, `cpu.stat`의 실제 throttling 증가와 합산 사용 시간을 확인한다. Windows는 두 프로세스의 실제 Job hard cap, 계산 수행량·QueryProcessCycleTime 증가, Job의 누적 프로세스 수와 보고된 합산 CPU 시간의 보조 상한을 확인한다. 낮은 CPU 비율에서는 기존 시간 카운터가 증가하지 않을 수 있으므로 작업 수행 여부를 그 카운터 하나에 의존하지 않는다. [프로세스 사이클 API](https://learn.microsoft.com/en-us/windows/win32/api/realtimeapiset/nf-realtimeapiset-queryprocesscycletime)의 사이클 수를 시간이나 응답 SLO로 변환하지 않는다. 보호 경로의 연속 HTTP 성공, 워커 PID·재시작 0, 상태·지표도 검사한다. 이 검사는 성능 향상율이나 운영 SLO를 입증하는 벤치마크가 아니다.
+검사는 부모와 실제 자손이 각각 유한한 시간 동안 CPU를 소모하는 작업을 사용한다. CPU 무제한 대조·CPU 단독 제한·메모리 및 생성 수 병용을 검사한다. Linux는 부모·자손의 동일 cgroup/quota, `cpu.stat`의 실제 throttling 증가와 합산 사용 시간을 확인한다. Windows는 두 프로세스의 실제 Job hard cap, 계산 수행량·QueryProcessCycleTime 증가, Job의 누적 프로세스 수와 보고된 합산 CPU 시간의 보조 상한을 확인한다. 낮은 CPU 비율에서는 기존 시간 카운터가 증가하지 않을 수 있으므로 작업 수행 여부를 그 카운터 하나에 의존하지 않는다. [프로세스 사이클 API](https://learn.microsoft.com/en-us/windows/win32/api/realtimeapiset/nf-realtimeapiset-queryprocesscycletime)의 사이클 수를 시간이나 응답 SLO로 변환하지 않는다. 보호 경로의 연속 HTTP 성공, 워커 PID·재시작 0, 상태·지표도 검사한다. 매우 낮은 CPU 한도로 격리 워커의 준비 상태가 일시적으로 실패하면 부하 종료 후 같은 PID로 회복해야 한다. 이 검사는 성능 향상율이나 운영 SLO를 입증하는 벤치마크가 아니다.
 
 ```sh
 sudo bash scripts/check-cpu-linux.sh "$(id -un)" "$(command -v go)"

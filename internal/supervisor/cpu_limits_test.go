@@ -270,6 +270,9 @@ func TestWorkerCPUBudgetContainsDescendantLoad(t *testing.T) {
 				}
 			}
 			waitFor(t, func() bool { return successes.Load() > started })
+			// A deliberately tiny CPU quota may legitimately expire readiness probes
+			// during load. Once load ends, require recovery in the same generation.
+			waitFor(t, func() bool { return s.Pools["isolated"].Ready() == 1 })
 			for name, pid := range map[string]int{"normal": normal.PID, "isolated": isolated.PID} {
 				actual := s.Pools[name].Snapshot()[0]
 				if !actual.Ready || actual.PID != pid || actual.Restarts != 0 {
