@@ -75,8 +75,9 @@ func TestTaskTreeHelper(t *testing.T) {
 			child.Env = append(os.Environ(), "ISOLATEX_TASK_HELPER=branch")
 			data, err := child.Output()
 			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
+				// The branch owns live leaves. Treat its unexpected death as fatal
+				// so the supervisor reclaims the whole worker tree before replacing it.
+				os.Exit(24)
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write(data)
@@ -235,7 +236,7 @@ func TestWorkerTaskBudgetContainsDescendantSpawns(t *testing.T) {
 					} else if result.Started < 1 || result.Started >= 48 || result.Blocked != 1 {
 						t.Fatalf("descendant budget not enforced: %+v", result)
 					}
-				} else if resp.StatusCode != 500 && resp.StatusCode != 502 {
+				} else if resp.StatusCode != 502 {
 					t.Fatalf("unexpected pressure response: %d", resp.StatusCode)
 				}
 				if runtime.GOOS == "linux" && mode != "unlimited" {
