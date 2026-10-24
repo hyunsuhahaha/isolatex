@@ -1,0 +1,20 @@
+[Unit]
+Description=IsolateX fault bulkheads
+After=network.target
+
+[Service]
+Type=exec
+User=isolatex
+WorkingDirectory=/opt/isolatex
+Delegate=memory
+DelegateSubgroup=manager
+OOMPolicy=continue
+# Keep this path consistent with the service name, slice and YAML cgroup_parent.
+ExecStartPre=/bin/sh -c 'echo +memory > /sys/fs/cgroup/system.slice/isolatex.service/cgroup.subtree_control'
+ExecStart=/opt/isolatex/bin/isolatex -config /etc/isolatex/isolatex.yaml
+KillMode=control-group
+TimeoutStopSec=20s
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

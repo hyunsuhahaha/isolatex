@@ -43,6 +43,7 @@ for target in ${TARGETS:-linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darw
   cp docs/*.md "$package/docs/"
   cp examples/static.yaml "$package/examples/"
   cp -R examples/observability "$package/examples/"
+  cp -R examples/memory "$package/examples/"
   archive="$name.tar.gz"
   tar -czf "$dist_root/$archive" -C "$package" .
   archives+=("$archive")

@@ -67,6 +67,28 @@ func TestWorkerHelper(t *testing.T) {
 		w.WriteHeader(200)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("ISOLATEX_TEST_MEMORY") == "1" && r.URL.Query().Get("memory") != "" {
+			// Bounded negative control: without a kernel budget this succeeds.
+			// Touch every page so Linux must charge actual memory, not just VA.
+			size := 96 << 20
+			if r.URL.Query().Get("memory") == "tree" {
+				size = 80 << 20
+			}
+			release, err := allocateTestMemory(size)
+			if err != nil {
+				os.Exit(24)
+			}
+			defer release()
+			if r.URL.Query().Get("memory") == "tree" {
+				child := exec.Command(os.Args[0], "-test.run=^TestWorkerMemoryChild$")
+				child.Env = append(os.Environ(), "ISOLATEX_TEST_MEMORY_CHILD=1")
+				if err := child.Run(); err != nil {
+					os.Exit(24)
+				}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]int{"pid": os.Getpid()})
+			return
+		}
 		if r.URL.Query().Get("crash") == "1" {
 			os.Exit(23)
 		}
@@ -76,6 +98,20 @@ func TestWorkerHelper(t *testing.T) {
 		os.Exit(24)
 	}
 	os.Exit(0)
+}
+
+func TestWorkerMemoryChild(t *testing.T) {
+	if os.Getenv("ISOLATEX_TEST_MEMORY_CHILD") != "1" {
+		return
+	}
+	if err := os.WriteFile(os.Getenv("MEMORY_CHILD_PID_FILE"), []byte(strconv.Itoa(os.Getpid())), 0600); err != nil {
+		os.Exit(25)
+	}
+	release, err := allocateTestMemory(176 << 20)
+	if err != nil {
+		os.Exit(24)
+	}
+	defer release()
 }
 
 func TestManagedHealthFailureAndRecoveryKeepsPID(t *testing.T) {

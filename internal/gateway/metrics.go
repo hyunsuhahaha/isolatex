@@ -14,6 +14,13 @@ type metrics struct {
 	queue    *prometheus.HistogramVec
 }
 
+func (b *group) workerMemoryLimit() int64 {
+	if b.cfg.Process != nil && b.cfg.Process.Resources != nil {
+		return b.cfg.Process.Resources.MemoryMaxBytes
+	}
+	return 0
+}
+
 func newRegistry() *prometheus.Registry {
 	r := prometheus.NewRegistry()
 	r.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
@@ -55,6 +62,7 @@ func (b *group) registerMetrics(r *prometheus.Registry) {
 	})
 	gauge("isolatex_concurrent_limit", "Configured group execution limit.", func() float64 { return float64(b.cfg.MaxConcurrent) })
 	gauge("isolatex_queue_limit", "Configured group queue capacity.", func() float64 { return float64(b.cfg.QueueSize) })
+	gauge("isolatex_worker_memory_limit_bytes", "Configured per-worker and descendant memory budget; zero disables. Accounting is platform-specific.", func() float64 { return float64(b.workerMemoryLimit()) })
 	counter := func(name, help string, f func() float64) {
 		r.MustRegister(prometheus.NewCounterFunc(prometheus.CounterOpts{Name: name, Help: help, ConstLabels: labels}, f))
 	}

@@ -9,7 +9,9 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +48,36 @@ type Process struct {
 	Workers   int               `yaml:"workers"`
 	PortStart int               `yaml:"port_start"`
 	Env       map[string]string `yaml:"env"`
+	Resources *Resources        `yaml:"resources"`
+}
+
+// MemoryMaxBytes applies to one managed worker and its descendants, not to
+// the entire group. Linux and Windows use different kernel accounting models.
+type Resources struct {
+	MemoryMaxBytes int64  `yaml:"memory_max_bytes"`
+	CgroupParent   string `yaml:"cgroup_parent"`
+}
+
+func (r *Resources) Validate() error {
+	if r == nil {
+		return nil
+	}
+	if r.MemoryMaxBytes <= 0 || uint64(r.MemoryMaxBytes) > uint64(^uintptr(0)) {
+		return fmt.Errorf("resources requires a positive representable memory_max_bytes")
+	}
+	switch runtime.GOOS {
+	case "windows":
+		if r.CgroupParent != "" {
+			return fmt.Errorf("resources.cgroup_parent is Linux-only")
+		}
+	case "linux":
+		if !filepath.IsAbs(r.CgroupParent) || filepath.Clean(r.CgroupParent) != r.CgroupParent {
+			return fmt.Errorf("resources requires an absolute clean cgroup_parent on Linux")
+		}
+	default:
+		return fmt.Errorf("managed memory limits are unsupported on %s", runtime.GOOS)
+	}
+	return nil
 }
 
 type Readiness struct {
@@ -187,6 +219,9 @@ func (c Config) Validate() error {
 			return fmt.Errorf("%s: static readiness requires path and positive interval/timeout", name)
 		}
 		if p := g.Process; p != nil {
+			if err := p.Resources.Validate(); err != nil {
+				return fmt.Errorf("%s: %w", name, err)
+			}
 			if len(p.Command) == 0 || strings.TrimSpace(p.Command[0]) == "" || p.Workers < 1 || p.PortStart < 1 || p.Workers > 65536-p.PortStart {
 				return fmt.Errorf("%s: invalid process command, workers or ports", name)
 			}

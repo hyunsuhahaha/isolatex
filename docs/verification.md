@@ -260,3 +260,15 @@ Windows compare 전체 검사 5회·vet와 Linux 관련 race 검사 10회가 통
 HTTP origin을 검사할 때 SplitHostPort의 구문 분리만 확인해 빈 호스트·빈 포트·0번·65536번·정수 범위를 넘는 포트가 통과했다. 공개 Decode 경로의 여섯 회귀 사례가 기존 구현에서 모두 실패하는 것을 확인했다. 호스트 존재와 숫자 포트 1–65535를 검사하도록 수정했다. 정상 DNS 이름·IPv6·포트 범위 양 끝의 대조는 허용하며, 시작 전 검증이 DNS/실제 연결 가능성을 확인한다는 주장은 하지 않는다. Windows config 전체 검사·vet, Linux config race 검사가 통과했다.
 
 공개 커밋 `3390b02ff7e5b55604e51969660d85a2b0e76f24`를 별도 GOBIN에 설치했고 버전 `v0.0.0-20261024022211-3390b02ff7e5`와 관리형·정적 기본 YAML 검사를 확인했다. 같은 설치본의 실제 `-check`가 여섯 잘못된 upstream 모두에서 그룹별 검증 오류와 종료 코드 1을 반환했다. README 설치 스냅샷을 이 검증된 커밋으로 갱신해 주소 검증 계약과 일치시켰다. Windows 프로세스 제어의 직접 의존성 `golang.org/x/sys/windows`도 설치 안내에 명시했다.
+
+## 2026-10-24 — 선택적 워커 트리 메모리 격벽
+
+관리형 process.resources에 양수 memory_max_bytes를 추가했다. Windows는 워커 Job의 committed memory 합을 제한하고, Linux는 별도 cgroup v2에 memory.max·memory.swap.max=0·memory.oom.group=1을 설정한 뒤 clone3의 cgroup FD로 시작한다. Linux는 위임 부모를 명시하며 미지원 OS·잘못된 설정·권한/컨트롤러 실패에서 제한 없는 실행으로 우회하지 않는다. 설정 한도를 status와 Prometheus gauge에 표시한다.
+
+실제 Supervisor·Gateway·HTTP 워커로 무제한 대조와 제한 검사를 수행했다. 부모 96MiB 할당은 64MiB 예산에서, 부모 80MiB와 자손 176MiB의 합은 트리 256MiB 예산에서 실패·워커 교체로 이어졌다. 같은 할당은 무제한 대조에서 성공했다. Windows는 VirtualAlloc commit으로, Linux는 실제 페이지를 채우는 Go 할당으로 검사했다. 두 OS에서 최종 네 사례를 각각 3회 통과했고 Linux는 race로 실행했다. 다른 그룹의 연속 HTTP 응답·준비 상태·PID와 0회 재시작을 유지했다.
+
+Linux 위임 검사 중 부모 경로만 위임하고 테스트 소유자를 범위 밖에 둔 경우 clone3가 permission denied를 반환하는 것을 확인했다. 소유자를 위임 범위의 manager 자식에 배치한 뒤 일반 계정의 테스트·워커로 모든 검사가 통과했다. 새 CI 도구는 고유 cgroup만 만들고 전역 컨트롤러 정책을 바꾸지 않으며 남은 디렉터리가 있으면 정리에 실패한다. 일반 디렉터리를 cgroup_parent로 지정하면 앱 명령이 실행되지 않는 검사도 포함했다.
+
+Windows 전체 test·vet와 Linux 전체 race·vet가 통과했다. Go 1.25.0 Windows/Linux의 config·supervisor 전체 검사도 통과했으며 같은 최소 버전 Linux의 실제 위임 메모리 race 검사 3회를 통과했다.
+
+Ubuntu/WSL2 Linux 6.6.87·systemd 255에서 실제 CLI를 User=user, Delegate=memory, DelegateSubgroup=manager, OOMPolicy=continue로 실행했다. 자손 메모리 주입 뒤 서비스는 active를 유지했고 런타임 PID가 유지됐다. 보호 워커 PID는 5862 그대로, 장애 워커는 5863에서 5910으로 교체됐으며 재시작 1회였다. 실제 파일 값 268435456·swap 0·OOM 그룹 1과 status의 설정값을 확인한 뒤 임시 서비스를 종료했다. 서비스 예제와 메모리 회계 차이·호스트 여유·미지원 OS·CPU/DB 한계를 문서화했다.

@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/hyunsuhahaha/isolatex/internal/config"
+
 	"golang.org/x/sys/windows"
 )
 
@@ -46,12 +48,20 @@ func ensureOwnerJob() error {
 }
 
 func newLifetimeJob() (windows.Handle, error) {
+	return newWorkerJob(0)
+}
+
+func newWorkerJob(memoryMaxBytes int64) (windows.Handle, error) {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return 0, fmt.Errorf("create lifetime job: %w", err)
 	}
 	limits := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
 	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+	if memoryMaxBytes > 0 {
+		limits.BasicLimitInformation.LimitFlags |= windows.JOB_OBJECT_LIMIT_JOB_MEMORY
+		limits.JobMemoryLimit = uintptr(memoryMaxBytes)
+	}
 	// This API exposes its input as uintptr rather than a typed pointer.
 	// Keep the buffer fixed across lazy DLL resolution and the native call.
 	var pinned runtime.Pinner
@@ -66,11 +76,18 @@ func newLifetimeJob() (windows.Handle, error) {
 
 // Suspend before the first application instruction so even an immediately
 // spawned descendant inherits this worker's job. Never resume on attach failure.
-func startManagedProcess(cmd *exec.Cmd) (*processControl, error) {
+func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources) (*processControl, error) {
+	if err := resources.Validate(); err != nil {
+		return nil, err
+	}
 	if err := ensureOwnerJob(); err != nil {
 		return nil, err
 	}
-	job, err := newLifetimeJob()
+	var memoryMaxBytes int64
+	if resources != nil {
+		memoryMaxBytes = resources.MemoryMaxBytes
+	}
+	job, err := newWorkerJob(memoryMaxBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -83,13 +100,15 @@ func startManagedProcess(cmd *exec.Cmd) (*processControl, error) {
 				_ = windows.TerminateJobObject(job, 1)
 			}
 		},
-		close: func() {
+		close: func() error {
 			mu.Lock()
 			defer mu.Unlock()
 			if job != 0 {
-				_ = windows.CloseHandle(job)
+				err := windows.CloseHandle(job)
 				job = 0
+				return err
 			}
+			return nil
 		},
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | windows.CREATE_SUSPENDED}

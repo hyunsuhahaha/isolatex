@@ -1,6 +1,7 @@
 package config
 
 import (
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -38,6 +39,65 @@ func TestDecodeStrictValidation(t *testing.T) {
 				t.Fatal("invalid config accepted")
 			}
 		})
+	}
+}
+
+func TestMemoryResourceValidation(t *testing.T) {
+	for _, r := range []*Resources{{}, {MemoryMaxBytes: -1}, {MemoryMaxBytes: 64 << 20, CgroupParent: "relative/parent"}} {
+		if err := r.Validate(); err == nil {
+			t.Fatalf("invalid resource budget accepted: %+v", r)
+		}
+	}
+	r := &Resources{MemoryMaxBytes: 64 << 20}
+	if runtime.GOOS == "linux" {
+		r.CgroupParent = "/sys/fs/cgroup/isolatex"
+	}
+	err := r.Validate()
+	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else if err == nil {
+		t.Fatal("unsupported memory limit silently accepted")
+	}
+	if runtime.GOOS == "windows" {
+		r.CgroupParent = "/sys/fs/cgroup/isolatex"
+		if err := r.Validate(); err == nil {
+			t.Fatal("Linux cgroup option silently ignored on Windows")
+		}
+	}
+}
+
+func TestDecodeValidatesMemoryResources(t *testing.T) {
+	input := strings.Replace(validConfig, `    upstreams: ["http://127.0.0.1:9100"]`, `    process:
+      command: ["./app"]
+      workers: 1
+      port_start: 9100
+      resources:
+        memory_max_bytes: 67108864`, 1) + `    readiness:
+      path: /readyz
+      interval: 1s
+      timeout: 100ms
+      startup_timeout: 5s
+`
+	if runtime.GOOS == "linux" {
+		input = strings.Replace(input, "memory_max_bytes: 67108864", "memory_max_bytes: 67108864\n        cgroup_parent: /sys/fs/cgroup/isolatex", 1)
+	}
+	_, err := Decode(strings.NewReader(input))
+	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else if err == nil {
+		t.Fatal("unsupported memory limit accepted through Decode")
+	}
+	for _, invalid := range []string{
+		strings.Replace(input, "memory_max_bytes: 67108864", "memory_max_bytes: 0", 1),
+		strings.Replace(input, "memory_max_bytes:", "memory_max_bytez:", 1),
+	} {
+		if _, err := Decode(strings.NewReader(invalid)); err == nil {
+			t.Fatal("invalid resource setting passed Decode")
+		}
 	}
 }
 

@@ -53,7 +53,7 @@ sum by (instance, group) (increase(isolatex_worker_restarts_total{job="isolatex"
 increase(isolatex_dropped_log_records_total{job="isolatex"}[5m])
 ```
 
-로그 유실은 런타임 전체 지표다. 워커 프로세스의 CPU·메모리 사용량은 이 런타임 지표에 포함되지 않으며 호스트/프로세스 관측 도구가 필요하다. 프로세스 분리를 CPU·메모리 quota로 해석하지 않는다.
+로그 유실은 런타임 전체 지표다. 워커 프로세스의 CPU·메모리 사용량은 이 런타임 지표에 포함되지 않으며 호스트/프로세스 관측 도구가 필요하다. `isolatex_worker_memory_limit_bytes`는 Linux·Windows의 선택적 워커당 설정값이며 실제 사용량이 아니다. [메모리 예산](../../docs/memory-limits.md)과 CPU 한도를 구분한다.
 
 ## 규칙 검사
 
