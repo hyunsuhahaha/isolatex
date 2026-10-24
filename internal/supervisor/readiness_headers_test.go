@@ -38,8 +38,17 @@ func TestManagedReadinessRejectsOversizedHeadersWithoutRestart(t *testing.T) {
 	waitFor(t, func() bool { return s.Pools["isolated"].Ready() == 1 && s.Pools["normal"].Ready() == 1 })
 	before := s.Pools["isolated"].Snapshot()[0]
 	normal := s.Pools["normal"].Snapshot()[0]
-	writeHeader(strings.Repeat("x", 1<<20))
+	// Model a writer paused after truncation: these completed checks still
+	// see a valid small response and cannot count toward header rejection.
+	writeHeader("")
 	waitFor(t, func() bool { return s.Pools["isolated"].Snapshot()[0].HealthChecks >= before.HealthChecks+5 })
+	writeHeader(strings.Repeat("x", 1<<20))
+	// Probes can complete while WriteFile is truncating/replacing the fixture
+	// data. A total check count does not prove consecutive oversized failures.
+	waitFor(t, func() bool {
+		w := s.Pools["isolated"].Snapshot()[0]
+		return w.ConsecutiveFailures >= 2 && w.HealthFailures >= before.HealthFailures+2 && s.Pools["normal"].Snapshot()[0].HealthChecks > normal.HealthChecks
+	})
 	bad := s.Pools["isolated"].Snapshot()[0]
 	if bad.Ready || bad.HealthFailures < 2 || bad.PID != before.PID || bad.Restarts != 0 {
 		t.Fatalf("oversized readiness response accepted or restarted worker: %+v", bad)
