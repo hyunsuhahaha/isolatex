@@ -278,3 +278,5 @@ Ubuntu/WSL2 Linux 6.6.87·systemd 255에서 실제 CLI를 User=user, Delegate=me
 메모리 구현 69f16e6의 7개 구성, push·PR 합계 14개 원격 check가 모두 통과했다. Linux amd64/arm64 및 Go 1.25.x 행은 일반 계정으로 위임 cgroup의 실제 메모리 race 검사도 수행했다. 추가 검토에서 프로세스 그룹을 벗어난 자손의 강제 회수를 별도로 검증했다. setsid 자손이 부모와 같은 cgroup에 남는지 확인하고 강제 종료 후 그 자손 회수·다른 워커 cgroup 생존·디렉터리 제거를 확인한다. 실패 정리는 재사용 가능한 PID 대신 pidfd를 유지한다. 이 검사를 포함한 최소 Go 1.25.0 Linux 위임 race 3회가 통과했다.
 
 추가 검토에서 자원 정리 실패 뒤 재시작을 계속하면 이전 세대의 예산에 새 예산을 겹칠 수 있는 경로를 차단했다. worker_resource_cleanup_failed가 발생한 슬롯은 failed로 멈추고 재시도를 시작하지 않는다. 실제 워커를 HTTP로 크래시시킨 뒤 정리 오류를 주입하는 검사를 추가했다. 이전의 로그 후 재시도 경로는 대조 검사에서 waits=1로 실패했고 수정 후에는 waits=0·슬롯 failed·보호 워커 PID/HTTP 유지가 확인됐다. Windows 검사 5회·Linux race 5회, Windows supervisor 전체·vet 및 최소 Go 1.25.0 Linux의 실제 메모리/cgroup race 검사가 통과했다.
+
+정리 실패 차단까지 포함한 공개 커밋 c3094ed5ef8dc23cc044aedc653a1b15551a5fe5를 별도 Windows GOBIN에 설치했다. v0.0.0-20261024063549-c3094ed5ef8d 버전과 256MiB 메모리 설정의 실제 -check를 통과했으며 설치 스냅샷을 이 커밋으로 갱신했다.
