@@ -371,3 +371,5 @@ Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet, Windo
 수정 후 실제 워커·자손 트리 8개를 5회 정리하는 40개 회귀 검사가 통과했다. 매번 별도 워커의 생존도 확인했다. 이 검사는 관측한 구성원의 종료와 Job 활성 수를 확인하는 기능 검사이며 호스트 RAM 예약이나 커널 자원 전부의 즉시 반환을 주장하지 않는다. Windows Job API의 계약은 Microsoft의 TerminateJobObject·JOBOBJECT_BASIC_PROCESS_ID_LIST·Job Objects 문서를 참고했다.
 
 추가로 자손 20개(루트 포함 21개)의 실제 트리를 5회 생성·정리해 초기 16개 프로세스 목록 버퍼의 확장과 모든 관측 핸들의 종료를 확인했다. Windows Go 1.27.3 전체 테스트·vet 및 Go 1.25.0 Job/크래시/정리 실패 회귀 3회가 통과했다.
+
+공개 커밋 fe2b6d6b89a4eb116678c06e79a2622730d59785를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024171601-fe2b6d6b89a4 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
