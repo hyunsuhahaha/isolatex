@@ -104,26 +104,7 @@ func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources
 	if err != nil {
 		return nil, err
 	}
-	var mu sync.Mutex
-	control := &processControl{
-		signal: func(bool) {
-			mu.Lock()
-			defer mu.Unlock()
-			if job != 0 {
-				_ = windows.TerminateJobObject(job, 1)
-			}
-		},
-		close: func() error {
-			mu.Lock()
-			defer mu.Unlock()
-			if job != 0 {
-				err := windows.CloseHandle(job)
-				job = 0
-				return err
-			}
-			return nil
-		},
-	}
+	control := newWorkerControl(job)
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | windows.CREATE_SUSPENDED}
 	if err := cmd.Start(); err != nil {
 		control.close()

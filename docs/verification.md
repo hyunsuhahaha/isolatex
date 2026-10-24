@@ -360,3 +360,14 @@ Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet, Windo
 추가 검토에서 조회 설정이 빠진 catch-all 앱의 200을 앞단이 정상으로 오인하지 않도록 IsolateX-Routing: v1:<group> 헤더를 반환하고, HAProxy가 200과 해당 헤더를 모두 검사하게 했다. 연동 마지막 단계에서 일반 앱의 200 fallback을 주입하고 해당 노드를 alpha·beta 모두에서 제외하는 검사도 추가했다. 이는 응답 형식 식별이며 인증이 아니다.
 
 헤더 식별 보강 후 실제 HAProxy 2.8.30 race 연동도 3회 통과했다. 공개 커밋 134443c3abd0df5d785de83a9c3a0c5989eeee42를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024145930-134443c3abd0 버전과 routing_probe_prefix가 포함된 HAProxy 노드 설정의 -check 성공을 확인했다. README 설치 고정값을 이 스냅샷으로 갱신했다.
+
+
+## Windows 워커 Job 종료 완료 경계 (2026-10-25)
+
+실제 워커가 자손을 만든 뒤 processControl.close가 성공한 바로 그 시점에 미리 확보한 프로세스 핸들을 0ms로 검사했다. 기존 KILL_ON_JOB_CLOSE 기반 구현에서는 8개 트리가 모두 WAIT_TIMEOUT(258)으로 실패했다. 종료 요청은 나갔지만 프로세스 종료 완료 이전에 정리 성공을 반환했다.
+
+첫 수정에서 TerminateJobObject 후 Job 활성 프로세스 수 0을 기다렸지만 같은 검사가 계속 실패했다. 회계상 활성 수 0과 프로세스 객체의 종료 신호를 같은 것으로 취급할 수 없음을 확인했다. 최종 구현은 종료 요청 전에 Job 구성원 핸들을 유지하고 그 핸들의 종료 신호와 Job 활성 수 0을 함께 검사한다. PID를 연 뒤 IsProcessInJob으로 소속을 검증해 재사용된 PID를 잘못 기다리지 않는다. 구성원 대기는 전체에 공통 1초 예산이고 프로세스 목록은 65,536개까지로 메모리를 제한한다. 실패는 기존 failed 슬롯 정책에 따라 교체를 차단하며 반복 close에서도 오류를 보존한다. 소유자 Job에는 이 종료 절차를 적용하지 않는다.
+
+수정 후 실제 워커·자손 트리 8개를 5회 정리하는 40개 회귀 검사가 통과했다. 매번 별도 워커의 생존도 확인했다. 이 검사는 관측한 구성원의 종료와 Job 활성 수를 확인하는 기능 검사이며 호스트 RAM 예약이나 커널 자원 전부의 즉시 반환을 주장하지 않는다. Windows Job API의 계약은 Microsoft의 TerminateJobObject·JOBOBJECT_BASIC_PROCESS_ID_LIST·Job Objects 문서를 참고했다.
+
+추가로 자손 20개(루트 포함 21개)의 실제 트리를 5회 생성·정리해 초기 16개 프로세스 목록 버퍼의 확장과 모든 관측 핸들의 종료를 확인했다. Windows Go 1.27.3 전체 테스트·vet 및 Go 1.25.0 Job/크래시/정리 실패 회귀 3회가 통과했다.
