@@ -24,3 +24,9 @@ go test -race ./... -count=1 -timeout=90s
 Linux는 `/proc`로 자손 상태를 확인하고 macOS는 기본 `ps`를 사용한다. 로컬 Linux race 실행, Darwin용 크로스 컴파일, 네이티브 macOS CI 실행은 서로 다른 검증이며 기록에서 구분한다. Linux·Windows·macOS 이외의 OS는 현재 직접 자식 종료 범위다.
 
 실제 Supervisor 검사에서는 SIGTERM을 무시하고 stdout/stderr를 상속하는 자손을 가진 워커를 HTTP로 크래시시킨다. 이전 자손 제거 후 대체 워커·자손을 시작하고, 다른 그룹의 기존 PID가 HTTP 응답을 계속 주는지 확인한다. 최종 Stop에서도 SIGTERM을 무시하는 대체 자손이 제거돼야 한다.
+
+## 시작 실패와 자원 정리
+
+관리형 워커가 준비되기 전에도 Linux cgroup 또는 Windows Job이 먼저 생성될 수 있다. 자원 설정·프로세스 생성·Windows Job 연결 단계의 시작 오류와 정리 오류를 함께 보존한다. 정리가 확인되지 않으면 `worker_resource_cleanup_failed`를 기록하고 해당 슬롯을 `failed`로 멈춘다. 이 경우 backoff와 새 워커 생성으로 넘어가지 않는다. 정리가 성공한 시작 실패는 기존 재시작 예산 안에서 재시도한다.
+
+다른 슬롯·그룹의 워커는 계속 동작한다. `failed` 슬롯은 자동으로 다시 열리지 않으므로 `/status`와 오류 로그에서 원인을 확인하고 남은 OS 자원을 운영 환경에서 조사한 뒤 런타임을 다시 시작한다. 이 정책은 정리 실패 이후 추가 자원 예산이 쌓이는 것을 막으며, 이미 정리에 실패한 자원이 모두 회수됐다는 뜻은 아니다.

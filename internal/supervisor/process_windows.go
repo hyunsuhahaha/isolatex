@@ -38,8 +38,7 @@ func ensureOwnerJob() error {
 		err = windows.AssignProcessToJobObject(job, current)
 	}
 	if err != nil {
-		_ = windows.CloseHandle(job)
-		return fmt.Errorf("assign runtime owner job: %w", err)
+		return failedStart(fmt.Errorf("assign runtime owner job: %w", err), windows.CloseHandle(job))
 	}
 	// Closing this handle while the owner is alive would also terminate the
 	// owner. Only OS process teardown closes it; no Go finalizer owns it.
@@ -72,8 +71,7 @@ func newWorkerJob(resources *config.Resources) (windows.Handle, error) {
 	pinned.Pin(&limits)
 	defer pinned.Unpin()
 	if _, err := windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&limits)), uint32(unsafe.Sizeof(limits))); err != nil {
-		_ = windows.CloseHandle(job)
-		return 0, fmt.Errorf("configure lifetime job: %w", err)
+		return 0, failedStart(fmt.Errorf("configure lifetime job: %w", err), windows.CloseHandle(job))
 	}
 	if resources != nil && resources.CPUPercent > 0 {
 		// Native structure is two DWORDs; the second is the CpuRate union arm.
@@ -84,8 +82,7 @@ func newWorkerJob(resources *config.Resources) (windows.Handle, error) {
 		_, err := windows.SetInformationJobObject(job, windows.JobObjectCpuRateControlInformation, uintptr(unsafe.Pointer(&rate)), uint32(unsafe.Sizeof(rate)))
 		ratePinned.Unpin()
 		if err != nil {
-			_ = windows.CloseHandle(job)
-			return 0, fmt.Errorf("configure worker CPU hard cap: %w", err)
+			return 0, failedStart(fmt.Errorf("configure worker CPU hard cap: %w", err), windows.CloseHandle(job))
 		}
 	}
 	return job, nil
@@ -107,8 +104,7 @@ func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources
 	control := newWorkerControl(job)
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | windows.CREATE_SUSPENDED}
 	if err := cmd.Start(); err != nil {
-		control.close()
-		return nil, err
+		return nil, failedStart(err, control.close())
 	}
 	attach := func() error {
 		process, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(cmd.Process.Pid))
@@ -125,8 +121,7 @@ func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources
 		control.signal(true)
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
-		control.close()
-		return nil, err
+		return nil, failedStart(err, control.close())
 	}
 	return control, nil
 }

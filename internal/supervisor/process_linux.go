@@ -3,7 +3,6 @@
 package supervisor
 
 import (
-	"fmt"
 	"os/exec"
 	"sync"
 
@@ -29,11 +28,7 @@ func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources
 	}
 	if err := cmd.Start(); err != nil {
 		if cg != nil {
-			_ = cg.directory.Close()
-			cg.directory = nil
-			if cleanupErr := cg.close(); cleanupErr != nil {
-				return nil, fmt.Errorf("start worker: %w; cgroup cleanup: %v", err, cleanupErr)
-			}
+			return nil, failedStart(err, cg.close())
 		}
 		return nil, err
 	}
