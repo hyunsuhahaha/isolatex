@@ -22,6 +22,66 @@ func TestRequestBodyCircuitAttribution(t *testing.T) {
 	}
 }
 
+func TestMalformedRequestBodyKeepsCircuitClosed(t *testing.T) {
+	for name, payload := range map[string]string{
+		"invalid_size":       "Z\r\n",
+		"invalid_terminator": "1\r\nx!!",
+		"invalid_trailer":    "0\r\nbad trailer\r\n\r\n",
+	} {
+		t.Run(name, func(t *testing.T) { checkMalformedRequestBody(t, payload) })
+	}
+}
+
+func checkMalformedRequestBody(t *testing.T, payload string) {
+	t.Helper()
+	g, s := testGateway(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			return
+		}
+		_, _ = io.WriteString(w, "ok")
+	}), func(c *config.Config) {
+		b := c.Bulkheads["isolated"]
+		b.CircuitBreaker = &config.CircuitBreaker{Window: time.Minute, MinRequests: 1, FailureRatio: .5, OpenTimeout: time.Minute}
+		c.Bulkheads["isolated"] = b
+	})
+	if got := code(t, s.Client(), s.URL+"/api/fault"); got != http.StatusOK {
+		t.Fatalf("warmup: %d", got)
+	}
+	conn, err := net.DialTimeout("tcp", s.Listener.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := io.WriteString(conn, "POST /api/fault HTTP/1.1\r\nHost: test\r\nTransfer-Encoding: chunked\r\n\r\n"+payload); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodPost})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, readErr := io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	eventually(t, func() bool { a, q := g.groups[0].gate.snapshot(); return a == 0 && q == 0 })
+	snapshot := g.groups[0].breaker.Snapshot()
+	if resp.StatusCode != http.StatusBadRequest || readErr != nil || snapshot.State != "closed" || snapshot.Failures != 0 || snapshot.Requests != 1 {
+		t.Fatalf("malformed body: status=%d read=%v breaker=%+v", resp.StatusCode, readErr, snapshot)
+	}
+	eventually(t, func() bool {
+		recorder := httptest.NewRecorder()
+		g.Admin().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		return strings.Contains(recorder.Body.String(), `isolatex_requests_total{group="isolated",outcome="request_body_error"} 1`)
+	})
+	if !resp.Close {
+		t.Fatal("malformed request connection remains reusable")
+	}
+	for _, path := range []string{"/api/fault", "/api/work"} {
+		if got := code(t, s.Client(), s.URL+path); got != http.StatusOK {
+			t.Fatalf("healthy request: path=%s status=%d", path, got)
+		}
+	}
+}
+
 func checkRequestBodyCircuit(t *testing.T, mode string) {
 	t.Helper()
 	var uploads atomic.Int32
@@ -119,5 +179,49 @@ func checkRequestBodyCircuit(t *testing.T, mode string) {
 		if got := code(t, s.Client(), s.URL+path); got != expected {
 			t.Fatalf("healthy request after stalled upload: path=%s status=%d", path, got)
 		}
+	}
+}
+
+// A backend closing its socket after a valid upload remains failure evidence.
+func TestBackendResetAfterUploadRemainsFailure(t *testing.T) {
+	g, s := testGateway(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err == nil {
+				_ = conn.Close()
+			}
+			return
+		}
+		_, _ = io.WriteString(w, "ok")
+	}), func(c *config.Config) {
+		b := c.Bulkheads["isolated"]
+		b.CircuitBreaker = &config.CircuitBreaker{Window: time.Minute, MinRequests: 1, FailureRatio: .5, OpenTimeout: time.Minute}
+		c.Bulkheads["isolated"] = b
+	})
+	if got := code(t, s.Client(), s.URL+"/api/fault"); got != http.StatusOK {
+		t.Fatalf("warmup: %d", got)
+	}
+	conn, err := net.DialTimeout("tcp", s.Listener.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := io.WriteString(conn, "POST /api/fault HTTP/1.1\r\nHost: test\r\nContent-Length: 4\r\n\r\nxxxx"); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodPost})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	eventually(t, func() bool { a, q := g.groups[0].gate.snapshot(); return a == 0 && q == 0 })
+	snapshot := g.groups[0].breaker.Snapshot()
+	if resp.StatusCode != http.StatusBadGateway || snapshot.State != "open" || snapshot.Failures != 1 || snapshot.Requests != 2 {
+		t.Fatalf("backend reset: status=%d breaker=%+v", resp.StatusCode, snapshot)
+	}
+	if got := code(t, s.Client(), s.URL+"/api/work"); got != http.StatusOK {
+		t.Fatalf("protected group: %d", got)
 	}
 }

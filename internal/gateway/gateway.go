@@ -234,6 +234,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Allow a small error response after the upstream budget expired.
 			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(250 * time.Millisecond))
 			var tooLarge *http.MaxBytesError
+			var bodyError *requestBodyError
 			switch {
 			case errors.As(err, &tooLarge):
 				result = breaker.Ignored
@@ -246,6 +247,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(req.Context().Err(), context.Canceled):
 				result = breaker.Ignored
 				outcome = "canceled"
+			case errors.As(err, &bodyError):
+				// Only the error propagated from reading the incoming body is
+				// client evidence; an unrelated backend reset is still a failure.
+				w.Header().Set("Connection", "close")
+				result = breaker.Ignored
+				outcome = "request_body_error"
+				fail(w, http.StatusBadRequest, outcome)
 			default:
 				if result != breaker.Ignored {
 					result = breaker.Failure
@@ -311,12 +319,22 @@ type requestBody struct {
 	timedOut atomic.Bool
 }
 
+type requestBodyError struct{ err error }
+
+func (e *requestBodyError) Error() string { return e.err.Error() }
+func (e *requestBodyError) Unwrap() error { return e.err }
+
 func (b *requestBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	if err != nil && err != io.EOF {
 		var timeout net.Error
 		if errors.As(err, &timeout) && timeout.Timeout() {
 			b.timedOut.Store(true)
+		}
+		// Transport may close the body after an upstream failure. That close
+		// is not evidence that the client sent a malformed request.
+		if !errors.Is(err, http.ErrBodyReadAfterClose) {
+			err = &requestBodyError{err: err}
 		}
 	}
 	return n, err
