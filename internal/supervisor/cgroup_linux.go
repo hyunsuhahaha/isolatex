@@ -36,7 +36,7 @@ func newWorkerCgroup(resources *config.Resources) (*workerCgroup, error) {
 		// This newly-created cgroup has never contained a process. Only remove
 		// our empty directory; never delete an operator's parent or files.
 		if removeErr := os.Remove(path); removeErr != nil {
-			return nil, fmt.Errorf("%w; remove new cgroup: %v", err, removeErr)
+			return nil, failedStart(err, fmt.Errorf("remove new cgroup: %w", removeErr))
 		}
 		return nil, err
 	}

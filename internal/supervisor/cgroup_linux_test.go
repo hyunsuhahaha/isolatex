@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,6 +20,40 @@ import (
 	"github.com/hyunsuhahaha/isolatex/internal/config"
 	"golang.org/x/sys/unix"
 )
+
+func TestMemoryBudgetFailedExecReleasesCgroup(t *testing.T) {
+	parent := os.Getenv("ISOLATEX_TEST_CGROUP_PARENT")
+	if parent == "" {
+		t.Skip("set ISOLATEX_TEST_CGROUP_PARENT to a delegated cgroup")
+	}
+	before, err := os.ReadDir(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(filepath.Join(t.TempDir(), "missing-worker"))
+	control, err := startManagedProcessWithResources(cmd, &config.Resources{MemoryMaxBytes: 64 << 20, CgroupParent: parent})
+	if err == nil {
+		control.signal(true)
+		_ = cmd.Wait()
+		_ = control.close()
+		t.Fatal("missing executable unexpectedly started")
+	}
+	if control != nil || !errors.Is(err, os.ErrNotExist) || errors.Is(err, errResourceCleanup) {
+		t.Fatalf("clean failed exec must preserve a retryable exec error: control=%v error=%v", control, err)
+	}
+	after, err := os.ReadDir(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != len(after) {
+		t.Fatalf("failed exec left a worker cgroup: before=%v after=%v", before, after)
+	}
+	for i := range before {
+		if before[i].Name() != after[i].Name() {
+			t.Fatalf("failed exec changed cgroup contents: before=%v after=%v", before, after)
+		}
+	}
+}
 
 func TestMemoryBudgetRejectsOrdinaryDirectoryBeforeWorkerStarts(t *testing.T) {
 	parent := t.TempDir()

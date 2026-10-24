@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -175,6 +176,12 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 				p.Set(index, false, 0, "failed")
 				return
 			}
+		} else if errors.Is(err, errResourceCleanup) {
+			// Startup can allocate a Job/cgroup before process creation fails.
+			// An unconfirmed teardown is terminal even without a running child.
+			s.log.Error("worker_resource_cleanup_failed", "group", name, "worker", index, "error", err)
+			p.Set(index, false, 0, "failed")
+			return
 		}
 		p.Set(index, false, 0, "backoff")
 		if ctx.Err() != nil {
