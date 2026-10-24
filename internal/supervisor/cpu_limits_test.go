@@ -30,14 +30,16 @@ type cpuSample struct {
 	Location, Quota              string
 	Flags, Rate, Processes, CPUs uint32
 	UsageUsec, Throttled         uint64
+	Cycles, WorkUnits            uint64
 }
 
 type cpuResult struct {
-	Before, After, Child cpuSample
-	Elapsed              time.Duration
+	Before, After, Child, ChildAfter cpuSample
+	Elapsed                          time.Duration
 }
 
 var cpuBurnSink atomic.Uint64
+var cpuBurnBatches atomic.Uint64
 
 func burnTestCPU() {
 	var wg sync.WaitGroup
@@ -47,12 +49,15 @@ func burnTestCPU() {
 		go func() {
 			defer wg.Done()
 			x := uint64(1)
+			batches := uint64(0)
 			for time.Now().Before(deadline) {
+				batches++
 				for n := 0; n < 4096; n++ {
 					x = x*6364136223846793005 + 1
 				}
 			}
 			cpuBurnSink.Add(x)
+			cpuBurnBatches.Add(batches)
 		}()
 	}
 	wg.Wait()
@@ -64,17 +69,22 @@ func TestCPUWorkerHelper(t *testing.T) {
 		return
 	}
 	if mode == "child" {
-		sample, err := sampleTestCPU()
+		before, err := sampleTestCPU()
 		if err != nil {
 			os.Exit(25)
 		}
-		data, err := json.Marshal(sample)
+		burnTestCPU()
+		after, err := sampleTestCPU()
+		if err != nil {
+			os.Exit(25)
+		}
+		data, err := json.Marshal(cpuResult{Before: before, After: after})
 		if err != nil || os.WriteFile(os.Getenv("CPU_CHILD_FILE"), data, 0600) != nil {
 			os.Exit(25)
 		}
-		burnTestCPU()
 		os.Exit(0)
 	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -106,9 +116,11 @@ func TestCPUWorkerHelper(t *testing.T) {
 			return
 		}
 		data, err := os.ReadFile(os.Getenv("CPU_CHILD_FILE"))
-		if err != nil || json.Unmarshal(data, &result.Child) != nil {
+		var childResult cpuResult
+		if err != nil || json.Unmarshal(data, &childResult) != nil {
 			os.Exit(25)
 		}
+		result.Child, result.ChildAfter = childResult.Before, childResult.After
 		result.Elapsed = time.Since(started)
 		_ = json.NewEncoder(w).Encode(result)
 	})
@@ -212,8 +224,11 @@ func TestWorkerCPUBudgetContainsDescendantLoad(t *testing.T) {
 			if result.Child.PID <= 0 || result.Child.PID == isolated.PID || result.Before.PID != isolated.PID || result.After.PID != isolated.PID {
 				t.Fatalf("missing live descendant: %+v", result)
 			}
-			if result.After.UsageUsec <= result.Before.UsageUsec {
-				t.Fatalf("no CPU work recorded: %+v", result)
+			if result.After.WorkUnits <= result.Before.WorkUnits || result.ChildAfter.WorkUnits <= result.Child.WorkUnits {
+				t.Fatalf("no actual compute work recorded: %+v", result)
+			}
+			if runtime.GOOS == "linux" && result.After.UsageUsec <= result.Before.UsageUsec {
+				t.Fatalf("no kernel CPU work recorded: %+v", result)
 			}
 			if runtime.GOOS == "linux" {
 				quota := "max 100000"
@@ -233,6 +248,11 @@ func TestWorkerCPUBudgetContainsDescendantLoad(t *testing.T) {
 					}
 				}
 			} else {
+				if result.After.Cycles <= result.Before.Cycles || result.ChildAfter.Cycles <= result.Child.Cycles {
+					t.Fatalf("no process CPU cycles recorded: %+v", result)
+				}
+				// Legacy Job time counters can stay unchanged at very low CPU rates.
+				// Require work and high-resolution cycle progress in both processes.
 				flags, rate := uint32(0), uint32(0)
 				if mode != "unlimited" {
 					flags, rate = 5, 100

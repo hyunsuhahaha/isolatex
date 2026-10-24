@@ -11,7 +11,7 @@ import (
 )
 
 func sampleTestCPU() (cpuSample, error) {
-	result := cpuSample{PID: os.Getpid()}
+	result := cpuSample{PID: os.Getpid(), WorkUnits: cpuBurnBatches.Load()}
 	data, err := os.ReadFile("/proc/self/cgroup")
 	if err != nil {
 		return result, err

@@ -313,3 +313,6 @@ CPU는 예약이나 순간 점유율·응답 시간의 보장이 아니다. Linu
 
 
 CPU 발행 전 설정 검사에서 YAML float→int 묵시 변환을 재현했다. Windows 공개 CLI는 cpu_percent: 0.9와 메모리 한도를 함께 주면 exit 0으로 승인했고 CPU만 0으로 잘려 비활성화됐다. 메모리·태스크·프로세스·두 CPU 필드의 소수값 회귀 검사를 먼저 추가해 기존 파서에서 실패를 확인한 뒤, scalar ResourceLimit 디코더로 정수 태그만 받도록 수정했다. 전체 Resources 디코더를 교체하지 않아 KnownFields와 기존 정수 anchor·merge를 유지하며, float anchor·merge도 거부한다. 기존 정수 설정의 커널 값·JSON 숫자 형태는 유지한다.
+
+
+Windows CI의 4 CPU 환경에서 1% hard cap이 실제 설정됐지만 Job 시간 카운터가 작업 전후 15625µs로 같은 사례를 확인했다. 시간 단위의 정밀도와 실제 집계 분해능을 혼동하지 않도록 검사에 부모·자손 각각의 계산 수행량과 QueryProcessCycleTime 증가를 추가했다. 기존 Job 시간은 보조 상한으로 확인하며, 카운터가 그대로라는 이유만으로 CPU 작업 미수행으로 판정하지 않는다. 실제 Job flags/rate·자손 포함·보호 경로 유지 조건은 그대로 검사한다.
