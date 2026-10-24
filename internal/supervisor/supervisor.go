@@ -21,16 +21,21 @@ import (
 )
 
 type Supervisor struct {
-	cfg     config.Config
-	Pools   map[string]*pool.Pool
-	log     *slog.Logger
-	wg      sync.WaitGroup
-	cancel  context.CancelFunc
-	logs    chan logLine
-	dropped atomic.Uint64
-	now     func() time.Time
-	wait    func(context.Context, time.Duration) bool
-	start   func(*exec.Cmd, *config.Resources) (*processControl, error)
+	cfg   config.Config
+	Pools map[string]*pool.Pool
+	log   *slog.Logger
+	// Serialize admission to the entire lifetime, including port preflight and
+	// every WaitGroup.Add. Stop permanently closes admission before waiting.
+	lifecycle sync.Mutex
+	started   bool
+	stopped   bool
+	wg        sync.WaitGroup
+	cancel    context.CancelFunc
+	logs      chan logLine
+	dropped   atomic.Uint64
+	now       func() time.Time
+	wait      func(context.Context, time.Duration) bool
+	start     func(*exec.Cmd, *config.Resources) (*processControl, error)
 }
 
 type logLine struct {
@@ -61,9 +66,21 @@ func New(c config.Config, logger *slog.Logger) *Supervisor {
 	return s
 }
 
-// Probe all managed ports before spawning anything. This catches existing owners,
-// but cannot eliminate a bind race with an unrelated process after the probe.
+// Start admits at most one successful lifetime. A canceled context or failed
+// port preflight may be retried until Stop is called. Probe all managed ports
+// before spawning anything; unrelated processes can still race a worker's bind.
 func (s *Supervisor) Start(parent context.Context) error {
+	s.lifecycle.Lock()
+	defer s.lifecycle.Unlock()
+	if s.stopped {
+		return fmt.Errorf("supervisor is stopped; create a new supervisor for a new lifetime")
+	}
+	if s.started {
+		return fmt.Errorf("supervisor already started")
+	}
+	if err := parent.Err(); err != nil {
+		return err
+	}
 	for name, g := range s.cfg.Bulkheads {
 		if p := g.Process; p != nil {
 			for i := 0; i < p.Workers; i++ {
@@ -76,8 +93,12 @@ func (s *Supervisor) Start(parent context.Context) error {
 			}
 		}
 	}
+	if err := parent.Err(); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithCancel(parent)
 	s.cancel = cancel
+	s.started = true
 	// Bounded, best-effort log delivery; a blocked sink never blocks a worker.
 	go func() {
 		for {
@@ -105,12 +126,20 @@ func (s *Supervisor) Start(parent context.Context) error {
 	return nil
 }
 
+// Stop closes the lifetime permanently, even when called before Start. Every
+// concurrent caller waits for managed workers and readiness monitors to finish.
 func (s *Supervisor) Stop() {
+	s.lifecycle.Lock()
+	first := !s.stopped
+	s.stopped = true
 	if s.cancel != nil {
 		s.cancel()
 	}
+	s.lifecycle.Unlock()
 	s.wg.Wait()
-	s.log.Info("workers_stopped", "dropped_log_chunks", s.dropped.Load())
+	if first {
+		s.log.Info("workers_stopped", "dropped_log_chunks", s.dropped.Load())
+	}
 }
 
 func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index int) {
