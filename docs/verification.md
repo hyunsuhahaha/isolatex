@@ -460,3 +460,5 @@ Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 최초 세 조건과 keep-alive 검사는 Windows 최소 Go 1.25.0에서 3회, Linux race에서 5회 통과했다. backend가 200 헤더를 먼저 보낸 뒤에도 업로드가 멈춘 추가 조건은 Windows에서 5회 통과했다. 5xx 보존 가드를 의도적으로 제거한 대조 검사에서는 확인된 backend 503까지 표본에서 지워져 closed/Requests=1/Failures=0으로 실패했고, 실제 가드가 실패 증거를 보존하는지 확인했다.
 
 200 헤더를 먼저 보내는 추가 조건도 Linux race 5회 통과했다. 최종 네 조건과 keep-alive 검사는 Windows 최소 Go 1.25.0에서 한 번 더 통과했고, 정상 read/EOF 경로에서 불필요한 오류 탐색을 생략한 최종 구현의 네 조건 검사도 Windows에서 통과했다.
+
+공개 커밋 b6706f384a112133a5c5ba7925852c4cf5b8659f를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024222245-b6706f384a11 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
