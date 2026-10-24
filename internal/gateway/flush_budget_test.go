@@ -19,18 +19,19 @@ import (
 
 type smallWriteListener struct {
 	net.Listener
-	progress *atomic.Int64
+	progress *atomic.Pointer[time.Time]
 }
 
 type writeProgressConn struct {
 	net.Conn
-	progress *atomic.Int64
+	progress *atomic.Pointer[time.Time]
 }
 
 func (c writeProgressConn) Write(p []byte) (int, error) {
 	n, err := c.Conn.Write(p)
 	if n > 0 {
-		c.progress.Store(time.Now().UnixNano())
+		now := time.Now()
+		c.progress.Store(&now)
 	}
 	return n, err
 }
@@ -42,7 +43,8 @@ func (l smallWriteListener) Accept() (net.Conn, error) {
 			_ = c.Close()
 			return nil, err
 		}
-		l.progress.Store(time.Now().UnixNano())
+		now := time.Now()
+		l.progress.Store(&now)
 		return writeProgressConn{c, l.progress}, nil
 	}
 	return c, err
@@ -125,7 +127,7 @@ func checkNonReadingConnection(t *testing.T, path string, local bool) {
 		})
 	}
 	s := httptest.NewUnstartedServer(handler)
-	var progress atomic.Int64
+	var progress atomic.Pointer[time.Time]
 	limited := ingress.New(smallWriteListener{s.Listener, &progress}, 1)
 	s.Listener = limited
 	s.Config.ReadHeaderTimeout = 5 * time.Second
@@ -181,8 +183,8 @@ func checkNonReadingConnection(t *testing.T, path string, local bool) {
 				break waitClosed
 			case <-tick.C:
 				// Buffer filling can make progress for longer on some hosts.
-				// Bound the lack of actual socket-write progress, not total fill time.
-				if last := progress.Load(); last != 0 && time.Since(time.Unix(0, last)) > 3*time.Second {
+				// Retain monotonic time across clock synchronization on VM hosts.
+				if last := progress.Load(); last != nil && time.Since(*last) > 3*time.Second {
 					t.Fatalf("cycle %d: non-reading connection survived stalled writes; accepted=%d upstream_calls=%d", cycle, limited.Active(), calls.Load())
 				}
 			case <-fillBudget.C:

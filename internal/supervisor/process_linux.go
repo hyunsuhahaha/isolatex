@@ -38,6 +38,7 @@ func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources
 	}
 	var mu sync.Mutex
 	closed := false
+	var cleanupResult error
 	return &processControl{
 		signal: func(force bool) {
 			mu.Lock()
@@ -54,13 +55,13 @@ func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources
 			mu.Lock()
 			defer mu.Unlock()
 			if closed {
-				return nil
+				return cleanupResult
 			}
 			closed = true
 			if cg != nil {
-				return cg.close()
+				cleanupResult = cg.close()
 			}
-			return nil
+			return cleanupResult
 		},
 	}, nil
 }

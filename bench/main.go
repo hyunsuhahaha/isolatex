@@ -150,10 +150,25 @@ func run() error {
 	if counts[503] == 0 || counts[200] == 0 || counts[0] != 0 {
 		return fmt.Errorf("unexpected fault group load outcomes: %v", counts)
 	}
-	if *expectedPID > 0 {
-		if _, err := snapshot(); err != nil {
+	// Client EOF can precede final server flush/accounting. Do not inject a
+	// crash while saturation requests still own execution or queue slots.
+	until = time.Now().Add(8 * time.Second)
+	for {
+		current, err := snapshot()
+		if err != nil {
 			return err
 		}
+		group, ok := current.Groups[*faultGroup]
+		if !ok {
+			return fmt.Errorf("fault group %q disappeared before crash injection", *faultGroup)
+		}
+		if group.Active == 0 && group.Queued == 0 {
+			break
+		}
+		if time.Now().After(until) {
+			return fmt.Errorf("fault group %q did not drain before crash injection", *faultGroup)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 	code, err := request(http.MethodPost, *faultPath+"?crash=1")
 	if err != nil || code != 502 {

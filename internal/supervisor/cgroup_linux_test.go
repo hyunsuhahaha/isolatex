@@ -21,6 +21,84 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func TestMemoryBudgetRepeatedCleanupPreservesFailure(t *testing.T) {
+	parent := os.Getenv("ISOLATEX_TEST_CGROUP_PARENT")
+	if parent == "" {
+		t.Skip("requires a delegated cgroup v2 parent")
+	}
+	cmd := exec.Command("sleep", "60")
+	control, err := startManagedProcessWithResources(cmd, &config.Resources{MemoryMaxBytes: 64 << 20, CgroupParent: parent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { _ = cmd.Wait(); close(done) }()
+	var path, nested string
+	t.Cleanup(func() {
+		// Explicitly remove only the two cgroups created by this test. Do not
+		// depend on a failed control to retry teardown or signal a reused PID.
+		control.signal(true)
+		_ = control.close()
+		_ = cmd.Process.Kill()
+		if path != "" {
+			_ = os.WriteFile(filepath.Join(path, "cgroup.kill"), []byte("1"), 0600)
+		}
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Error("worker not reaped")
+		}
+		for _, directory := range []string{nested, path} {
+			if directory != "" {
+				if err := os.Remove(directory); err != nil && !os.IsNotExist(err) {
+					t.Error(err)
+				}
+			}
+		}
+	})
+	membership, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", cmd.Process.Pid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(membership), "\n") {
+		if strings.HasPrefix(line, "0::") {
+			candidate := filepath.Join("/sys/fs/cgroup", strings.TrimPrefix(line, "0::"))
+			if filepath.Dir(candidate) != filepath.Clean(parent) || !strings.HasPrefix(filepath.Base(candidate), "isolatex-worker-") {
+				t.Fatalf("worker outside test delegation: %s", candidate)
+			}
+			path = candidate
+		}
+	}
+	if path == "" {
+		t.Fatal("worker cgroup not found")
+	}
+	nested = filepath.Join(path, "cleanup-blocker")
+	if err := os.Mkdir(nested, 0700); err != nil {
+		t.Fatal(err)
+	}
+	// A real nested cgroup prevents removing the generation directory even
+	// after cgroup.kill has stopped its processes. No fake OS errors here.
+	first := control.close()
+	if first == nil {
+		t.Fatal("nonempty cgroup cleanup unexpectedly succeeded")
+	}
+	if err := os.Remove(nested); err != nil {
+		t.Fatal(err)
+	}
+	results := make(chan error, 8)
+	for range cap(results) {
+		go func() { results <- control.close() }()
+	}
+	for range cap(results) {
+		if err := <-results; !errors.Is(err, first) {
+			t.Errorf("repeated cleanup lost the original failure: first=%v repeated=%v", first, err)
+		}
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("closed control unexpectedly retried resource teardown: %v", err)
+	}
+}
+
 func TestMemoryBudgetFailedExecReleasesCgroup(t *testing.T) {
 	parent := os.Getenv("ISOLATEX_TEST_CGROUP_PARENT")
 	if parent == "" {
