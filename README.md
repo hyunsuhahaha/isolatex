@@ -89,6 +89,7 @@ go run ./bench -healthy-group beta -healthy-path /b/work -fault-group alpha -fau
 
 관리형 앱은 foreground로 실행한다. 스스로 daemonize하거나 프로세스 그룹을 벗어나는 명령은 일반 관리형 워커의 수명 계약을 따르지 않는다.
 
+- `max_connections`는 공용 리스너가 수용한 TCP 연결 수의 상한이며 기본값은 1024다. 헤더 수신 전·keep-alive 유휴 연결도 포함한다. 관리 리스너는 별도 64개 상한을 사용한다. 포화 시 새 연결은 OS backlog에서 대기하며 HTTP 503을 보장하지 않는다. 경로 분류 전의 공용 한도이므로 그룹별 연결 예약은 아니다. [연결 경계와 운영 설정](docs/connection-limits.md)
 - `workers`는 프로세스 개수, `max_concurrent`는 그룹 전체의 전달 중 요청 수다. `queue_size: 0`이면 즉시 수용하거나 거부한다.
 - 모든 그룹의 `max_concurrent + queue_size` 합은 `max_admitted_requests` 이하여야 한다. 이 한도는 시작 시 용량 예약을 검증하는 상한이다. 요청마다 전역 슬롯을 선착순으로 경쟁하지 않으며, 그룹의 남는 용량을 다른 그룹이 빌리지 않는다. 기존에 합계보다 작은 전역 한도를 사용했다면 전역 한도를 올리거나 그룹별 한도를 줄여야 한다. 해당 설정은 이제 시작 오류다.
 - `/a`와 `/a/work`는 alpha, `/b`와 `/b/work`는 beta다. `/b-old`는 어느 그룹에도 일치하지 않아 404다. 경로는 세그먼트 경계를 포함한 최장 prefix로 분류하며 동일 prefix 중복은 설정 오류다.

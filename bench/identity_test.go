@@ -52,7 +52,7 @@ func TestSmokeChecksRuntimeIdentityBeforeInjectingFaults(t *testing.T) {
 				_, _ = io.WriteString(w, "ok")
 			}))
 			defer upstream.Close()
-			c := config.Config{Version: 1, Listen: "127.0.0.1:18080", AdminListen: "127.0.0.1:19090", MaxAdmitted: 3, MaxBodyBytes: 1024, ShutdownGrace: time.Second, Bulkheads: map[string]config.Group{}}
+			c := config.Config{Version: 1, Listen: "127.0.0.1:18080", AdminListen: "127.0.0.1:19090", MaxConnections: 1024, MaxAdmitted: 3, MaxBodyBytes: 1024, ShutdownGrace: time.Second, Bulkheads: map[string]config.Group{}}
 			for i, name := range []string{"alpha", "beta"} {
 				g := config.Group{Upstreams: []string{upstream.URL}, MaxConcurrent: 1, QueueTimeout: time.Second, RequestTimeout: 2 * time.Second}
 				g.Match.PathPrefix = []string{"/a", "/b"}[i]

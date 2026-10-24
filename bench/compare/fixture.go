@@ -86,7 +86,7 @@ func launch(ctx context.Context, o options, variant string) (_ *fixture, err err
 		f.listeners = append(f.listeners, ln)
 	}
 	public, admin := f.listeners[4].Addr().String(), f.listeners[5].Addr().String()
-	base := config.Config{Version: 1, Listen: public, AdminListen: admin, MaxAdmitted: 12, MaxBodyBytes: 1 << 20, ShutdownGrace: 2 * time.Second}
+	base := config.Config{Version: 1, Listen: public, AdminListen: admin, MaxConnections: 1024, MaxAdmitted: 12, MaxBodyBytes: 1 << 20, ShutdownGrace: 2 * time.Second}
 	ownerConfig := base
 	ownerConfig.Bulkheads = map[string]config.Group{}
 	managed := func(name string, start, count int) {

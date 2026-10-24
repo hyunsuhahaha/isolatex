@@ -19,7 +19,7 @@ func testGateway(t *testing.T, handler http.Handler, options ...func(*config.Con
 	t.Helper()
 	up := httptest.NewServer(handler)
 	t.Cleanup(up.Close)
-	c := config.Config{Version: 1, Listen: "127.0.0.1:8080", AdminListen: "127.0.0.1:9090", MaxAdmitted: 4, MaxBodyBytes: 32, ShutdownGrace: time.Second, Bulkheads: map[string]config.Group{}}
+	c := config.Config{Version: 1, Listen: "127.0.0.1:8080", AdminListen: "127.0.0.1:9090", MaxConnections: 1024, MaxAdmitted: 4, MaxBodyBytes: 32, ShutdownGrace: time.Second, Bulkheads: map[string]config.Group{}}
 	for _, name := range []string{"normal", "isolated"} {
 		b := config.Group{MaxConcurrent: 1, QueueSize: 1, QueueTimeout: time.Second, RequestTimeout: 2 * time.Second, Upstreams: []string{up.URL}}
 		b.Match.PathPrefix = "/api"

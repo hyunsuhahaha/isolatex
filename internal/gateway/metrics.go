@@ -39,6 +39,17 @@ func (g *Gateway) RegisterLogDrops(dropped func() uint64) {
 	}, func() float64 { return float64(dropped()) }))
 }
 
+// RegisterConnections installs accepted TCP connection accounting before Serve.
+func (g *Gateway) RegisterConnections(listener string, limit int, active func() int64) {
+	labels := prometheus.Labels{"listener": listener}
+	g.registry.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "isolatex_connections", Help: "Accepted open TCP connections, including idle and pre-header connections.", ConstLabels: labels,
+	}, func() float64 { return float64(active()) }))
+	g.registry.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "isolatex_connections_limit", Help: "Maximum accepted open TCP connections for this listener.", ConstLabels: labels,
+	}, func() float64 { return float64(limit) }))
+}
+
 func (b *group) registerMetrics(r *prometheus.Registry) {
 	labels := prometheus.Labels{"group": b.name}
 	b.metrics = metrics{
