@@ -274,3 +274,5 @@ Windows 전체 test·vet와 Linux 전체 race·vet가 통과했다. Go 1.25.0 Wi
 Ubuntu/WSL2 Linux 6.6.87·systemd 255에서 실제 CLI를 User=user, Delegate=memory, DelegateSubgroup=manager, OOMPolicy=continue로 실행했다. 자손 메모리 주입 뒤 서비스는 active를 유지했고 런타임 PID가 유지됐다. 보호 워커 PID는 5862 그대로, 장애 워커는 5863에서 5910으로 교체됐으며 재시작 1회였다. 실제 파일 값 268435456·swap 0·OOM 그룹 1과 status의 설정값을 확인한 뒤 임시 서비스를 종료했다. 서비스 예제와 메모리 회계 차이·호스트 여유·미지원 OS·CPU/DB 한계를 문서화했다.
 
 공개 모듈 커밋 eb8466b151c749ad3862abf23081249f44c611fb를 Windows의 별도 GOBIN에 설치했다. 버전 v0.0.0-20261024062105-eb8466b151c7과 기본 YAML·256MiB 메모리 옵션을 추가한 YAML의 실제 -check를 통과했다. README 설치 스냅샷을 이 메모리 기능 포함 커밋으로 갱신했다.
+
+메모리 구현 69f16e6의 7개 구성, push·PR 합계 14개 원격 check가 모두 통과했다. Linux amd64/arm64 및 Go 1.25.x 행은 일반 계정으로 위임 cgroup의 실제 메모리 race 검사도 수행했다. 추가 검토에서 프로세스 그룹을 벗어난 자손의 강제 회수를 별도로 검증했다. setsid 자손이 부모와 같은 cgroup에 남는지 확인하고 강제 종료 후 그 자손 회수·다른 워커 cgroup 생존·디렉터리 제거를 확인한다. 실패 정리는 재사용 가능한 PID 대신 pidfd를 유지한다. 이 검사를 포함한 최소 Go 1.25.0 Linux 위임 race 3회가 통과했다.

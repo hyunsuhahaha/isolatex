@@ -7,8 +7,8 @@ if [[ $# != 2 || "$(id -u)" != 0 ]]; then
 fi
 test_user="$1"
 go_binary="$2"
-test_uid="$(id -u "$test_user")"
-test_gid="$(id -g "$test_user")"
+test_uid="$(id -u -- "$test_user")"
+test_gid="$(id -g -- "$test_user")"
 if [[ "$test_uid" == 0 || "$go_binary" != /* || ! -x "$go_binary" ]]; then
   echo 'a non-root test user and absolute executable Go path are required' >&2
   exit 2
@@ -37,5 +37,5 @@ mkdir "$task_group/manager"
   # migration permission on the common ancestor of owner and target cgroups.
   echo "$BASHPID" > "$task_group/manager/cgroup.procs"
   exec runuser -u "$test_user" -- env PATH="$(dirname "$go_binary"):$PATH" ISOLATEX_TEST_CGROUP_PARENT="$task_group" \
-    "$go_binary" test -race ./internal/supervisor -run 'TestWorkerMemoryBudget|TestMemoryBudgetRejects' -count=3 -timeout=90s
+    "$go_binary" test -race ./internal/supervisor -run 'TestWorkerMemoryBudget|TestMemoryBudgetRejects|TestMemoryCgroupContains' -count=3 -timeout=90s
 )
