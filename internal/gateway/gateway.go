@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -309,7 +310,7 @@ func (g *Gateway) Admin() http.Handler {
 			groups[b.name] = map[string]any{"active": a, "queued": q, "max_concurrent": b.cfg.MaxConcurrent, "queue_size": b.cfg.QueueSize, "workers": b.pool.Snapshot(), "circuit_breaker": b.breaker.Snapshot()}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"draining": g.draining.Load(), "groups": groups})
+		_ = json.NewEncoder(w).Encode(map[string]any{"runtime_pid": os.Getpid(), "draining": g.draining.Load(), "groups": groups})
 	})
 	mux.Handle("GET /metrics", promhttp.HandlerFor(g.registry, promhttp.HandlerOpts{}))
 	return mux

@@ -218,3 +218,11 @@ Linux 전체 race 실행 중 자손이 `/proc` 조회 도중 사라지며 ENOENT
 최종 Linux 전체 race·vet와 Go 1.25.0 Windows supervisor 전체 검사가 통과했다. 같은 Go 1.25.0으로 Darwin amd64·arm64 supervisor 테스트 실행 파일의 크로스 컴파일도 통과했다. 로컬에서 macOS 실행을 주장하지 않으며 네이티브 macOS 두 아키텍처의 동작은 원격 CI에서 구분해 확인한다.
 
 첫 원격 Go 1.25.x Linux 검사에서는 Stop 직후 커널 상태를 즉시 읽어 자손 종료 전의 짧은 구간을 실패로 판정했다. 신호 전달의 비동기 계약에 맞춰 최대 3초 안의 실제 종료를 확인하도록 바꾸고 대체 자손의 그룹 ID도 현재 워커와 일치할 때만 추적했다. 종료가 확인된 PID는 실패 정리 대상에서 제거한다. 수정 뒤 Go 1.25.0 Linux의 그룹·SIGTERM 무시 검사 20회가 통과했다.
+
+`108dce4`의 7개 구성, push·PR 합계 14개 check가 모두 성공했다. 원격 로그에서 `go1.27.3 darwin/arm64`와 `go1.27.3 darwin/amd64`를 확인했고 두 네이티브 macOS의 supervisor 전체 검사·vet·모듈/호출 취약점 검사가 통과했다. 이후 기본 브랜치에 병합했다. 같은 공개 커밋을 Windows에서 모듈 버전 `v0.0.0-20261024013028-108dce443a8e`로 설치해 버전·기본 설정 검사를 통과했다.
+
+## 2026-10-24 — 자동 장애 검사의 관리 인스턴스 식별
+
+기존 smoke는 자신이 실행한 프로세스의 준비 상태와 같은 주소에 이미 떠 있는 인스턴스의 응답을 구분하지 않았다. 관리 `/status`에 실제 런타임 PID를 추가하고 smoke driver의 선택적 `-expected-runtime-pid`로 매 관리 snapshot을 확인한다. 자동 스크립트는 자신이 시작한 PID를 전달하며 앱 요청 전과 크래시 주입 직전에 대조한다. JSON 결과에도 대상 런타임 PID를 기록한다.
+
+실제 Gateway·관리 HTTP 서버와 별도 smoke CLI를 사용하는 검사는 식별 없는 대조에서 장애 요청이 실행되는지, 다른 PID를 기대하면 앱 요청이 하나도 실행되지 않는지, 같은 PID를 기대하면 정상 smoke가 완료되는지 확인한다. Windows 검사 5회, Linux 해당 bench·gateway race 5회와 양쪽 vet가 통과했다. 실제 CLI 양방향 smoke도 같은 `runtime_pid`에서 각각 보호 요청 41개 성공·PID 유지·장애 워커 재시작을 확인했다. 기존 수동 인자 생략 동작은 유지하며 gateway/admin URL은 같은 설정에 맞춰야 한다.

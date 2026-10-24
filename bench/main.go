@@ -19,7 +19,8 @@ type worker struct {
 	Restarts int
 }
 type status struct {
-	Groups map[string]struct {
+	RuntimePID int `json:"runtime_pid"`
+	Groups     map[string]struct {
 		Active        int
 		Queued        int
 		Workers       []worker
@@ -37,12 +38,16 @@ func main() {
 func run() error {
 	base := flag.String("url", "http://127.0.0.1:8080", "demo gateway")
 	admin := flag.String("admin", "http://127.0.0.1:9090", "demo admin origin")
+	expectedPID := flag.Int("expected-runtime-pid", 0, "require this admin runtime PID before fault injection; 0 disables the check")
 	healthyGroup := flag.String("healthy-group", "alpha", "group whose capacity and workers must remain healthy")
 	faultGroup := flag.String("fault-group", "beta", "group receiving injected delays and a process crash")
 	healthyPath := flag.String("healthy-path", "/a/work", "healthy demo request path")
 	faultPath := flag.String("fault-path", "/b/work", "fault-injection demo request path (without query)")
 	faultDelay := flag.Duration("fault-delay", time.Second, "injected demo delay (0..1m)")
 	flag.Parse()
+	if *expectedPID < 0 {
+		return fmt.Errorf("expected-runtime-pid must be non-negative")
+	}
 	if *healthyGroup == *faultGroup {
 		return fmt.Errorf("healthy-group and fault-group must be different")
 	}
@@ -61,6 +66,9 @@ func run() error {
 			return s, fmt.Errorf("status HTTP %d", resp.StatusCode)
 		}
 		err = json.NewDecoder(resp.Body).Decode(&s)
+		if err == nil && *expectedPID > 0 && s.RuntimePID != *expectedPID {
+			return s, fmt.Errorf("runtime identity mismatch: expected PID %d, got %d", *expectedPID, s.RuntimePID)
+		}
 		return s, err
 	}
 	before, err := snapshot()
@@ -142,6 +150,11 @@ func run() error {
 	if counts[503] == 0 || counts[200] == 0 || counts[0] != 0 {
 		return fmt.Errorf("unexpected fault group load outcomes: %v", counts)
 	}
+	if *expectedPID > 0 {
+		if _, err := snapshot(); err != nil {
+			return err
+		}
+	}
 	code, err := request(http.MethodPost, *faultPath+"?crash=1")
 	if err != nil || code != 502 {
 		return fmt.Errorf("crash did not yield 502: %d %v", code, err)
@@ -187,5 +200,5 @@ func run() error {
 		return fmt.Errorf("healthy group failed after crash")
 	}
 	sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{"result": "passed", "healthy_group": *healthyGroup, "fault_group": *faultGroup, "healthy_requests": len(durations) + 1, "healthy_p95_ms": float64(durations[37].Microseconds()) / 1000, "fault_status_counts": counts, "fault_worker_restarted": true, "healthy_pids_unchanged": true})
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"result": "passed", "runtime_pid": before.RuntimePID, "healthy_group": *healthyGroup, "fault_group": *faultGroup, "healthy_requests": len(durations) + 1, "healthy_p95_ms": float64(durations[37].Microseconds()) / 1000, "fault_status_counts": counts, "fault_worker_restarted": true, "healthy_pids_unchanged": true})
 }
