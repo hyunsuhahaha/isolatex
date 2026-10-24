@@ -114,7 +114,17 @@ func checkNonReadingConnection(t *testing.T, path string, local bool) {
 	if local && path == "/api/fault" {
 		g.groups[0].pool.Set(0, false, 0, "failed")
 	}
-	s := httptest.NewUnstartedServer(g)
+	var handler http.Handler = g
+	if local {
+		// Keep local bodies unchanged, but add a valid response header to fill
+		// TCP buffers without thousands of tiny, delayed-ACK-limited replies.
+		// net/http still buffers these bodies and writes the headers at finish.
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Test-Padding", strings.Repeat("p", 32<<10))
+			g.ServeHTTP(w, r)
+		})
+	}
+	s := httptest.NewUnstartedServer(handler)
 	var progress atomic.Int64
 	limited := ingress.New(smallWriteListener{s.Listener, &progress}, 1)
 	s.Listener = limited
