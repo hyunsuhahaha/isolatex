@@ -6,7 +6,7 @@ IsolateX는 요청·프로세스 장애의 영향 범위를 줄이는 격벽이�
 
 - 앱 프로세스는 런타임과 같은 사용자 권한으로 실행하며 부모 환경변수를 상속한다. Linux·Windows에서 선택한 워커 트리 메모리 한도를 적용하며, 기본값은 제한 없음이다. 추가로 Linux 태스크 수(스레드 포함)·Windows 활성 프로세스 수를 선택적으로 제한한다. CPU는 Linux 코어 대역폭·Windows Job 비율로 선택적 상한을 적용한다. Windows의 스레드 수·공유 DB 상한이나 호스트 전체 OOM 방지는 제공하지 않는다. 같은 권한의 앱이 제한을 바꾸거나 위임 범위를 탈출하는 행위를 막는 샌드박스는 아니다. [메모리 경계](docs/memory-limits.md) · [생성 수 경계](docs/task-limits.md) · [CPU 경계](docs/cpu-limits.md)
 - 관리 포트는 loopback 전용이며 인증이 없다. 신뢰할 수 없는 프로세스가 있는 호스트에서의 관리자 접근 제어를 제공하지 않는다.
-- TLS 종단·사용자 인증·전체 TCP 연결 수 보호는 외부 운영 환경에서 구성한다. 요청 수용 한도는 HTTP 경로 분류 이후에 적용한다.
+- TLS 종단·사용자 인증·네트워크 수준 연결 폭주 방어는 외부 운영 환경에서 구성한다. 공용 리스너는 `max_connections`로 수용한 TCP 연결을 제한하며 관리 리스너의 64개 예산은 독립적이다. OS backlog·호스트 전체 FD·클라이언트별 공정성을 보장하는 한도는 아니다. 그룹별 요청 수용 한도는 HTTP 경로 분류 이후에 적용한다. [연결 경계](docs/connection-limits.md)
 - 런타임은 요청 URL·query·헤더를 요청 로그에 넣지 않는다. 앱 stdout/stderr는 그대로 전달하므로 앱이 출력한 비밀값을 제거해 주지는 않는다.
 - Linux·macOS의 프로세스 그룹 종료는 그룹을 탈출한 자손이나 런타임 SIGKILL 이후 정리를 보장하지 않는다. Windows는 소유자·워커별 Job Object로 일반적인 CreateProcess 자손의 수명을 관리한다. WMI나 외부 서비스가 대신 실행한 프로세스, 악성 동일 권한 프로세스를 격리하는 보장은 아니다. Job 생성·등록 실패 시 관리형 워커를 실행하지 않으며 직접 자식 방식으로 우회하지 않는다. [Unix 수명 경계](docs/process-groups.md) · [Windows 수명 경계](docs/windows-processes.md)
 

@@ -21,6 +21,22 @@ bulkheads:
     request_timeout: 2s
 `
 
+func TestConnectionBudgetValidation(t *testing.T) {
+	c, err := Decode(strings.NewReader(validConfig))
+	if err != nil || c.MaxConnections != 1024 {
+		t.Fatalf("default connection budget: %d, %v", c.MaxConnections, err)
+	}
+	for _, value := range []string{"0", "-1", "0.9", "2.9", "\"2\"", "true", "9223372036854775808"} {
+		if _, err := Decode(strings.NewReader(validConfig + "max_connections: " + value + "\n")); err == nil {
+			t.Fatalf("invalid connection budget accepted: %s", value)
+		}
+	}
+	c, err = Decode(strings.NewReader(validConfig + "max_connections: 2\n"))
+	if err != nil || c.MaxConnections != 2 {
+		t.Fatalf("explicit connection budget: %d, %v", c.MaxConnections, err)
+	}
+}
+
 func TestDecodeStrictValidation(t *testing.T) {
 	if _, err := Decode(strings.NewReader(validConfig)); err != nil {
 		t.Fatal(err)

@@ -332,3 +332,16 @@ Start는 포트 확인과 모든 워커·정적 readiness 감시의 등록을 �
 검사는 생성 전 중복 시작 차단, 실제 워커 준비와 동시 Stop 후 PID·준비 상태·포트 회수, 프로세스 생성 도중 Stop의 대기와 생성 완료 후 수거, 종료 이후 시작 차단, 취소된 시작·포트 충돌 후 재시도를 포함한다. 정적 readiness 감시에서는 8개 시작 호출과 8개 종료 호출을 32회 경쟁시켜 race detector로 검사한다.
 
 로컬 검증: Windows Go 1.27.3 전체 테스트·vet, Windows 최소 Go 1.25.0 수명 검사 10회, Linux Go 1.27.3 수명 race 검사 10회·전체 race·vet가 통과했다. 이 변경은 감독자 내부 호출 경계의 보강이며, 현재 CLI의 시작 호출은 원래 한 번이다. 외부 HTTP 요청만으로 중복 Start를 호출할 수 있다는 주장은 하지 않는다.
+
+
+## HTTP 경로 분류 전 연결 수용 상한 (2026-10-24)
+
+기존 그룹별 활성·대기 요청 한도는 헤더를 읽기 전 연결과 keep-alive 유휴 연결을 세지 않았다. 공용 TCP 연결 수에 별도 상한이 없어 이 자원 경계를 운영 프록시에만 맡기던 범위를 보강했다. max_connections는 생략 시 1024, 명시 시 양의 YAML 정수이며 부동소수점·문자열 변환을 허용하지 않는다. 관리 리스너는 별도 64개 예산을 사용한다.
+
+리스너는 Accept 이전에 예산을 확보하고 연결 Close에서 한 번만 반환한다. Close는 OS Accept와 예산 대기를 모두 해제하며 이미 수용한 연결의 종료는 HTTP 서버의 drain 정책에 맡긴다. isolatex_connections와 isolatex_connections_limit은 public/admin별 gauge다. OS backlog나 그룹별 연결 예약, 호스트 전체 FD 보호를 주장하지 않는다.
+
+새 실제 CLI 검사는 공용 한도 2에 헤더 수신 전 연결·keep-alive 연결을 하나씩 채운다. 세 번째 요청은 응답을 받지 못하고 대기하는 동안 관리 health/readiness/status/metrics는 응답한다. keep-alive 연결을 닫으면 대기 요청은 200으로 완료되고 전부 닫으면 공용 연결 gauge가 0으로 회수된다. 상한 구현을 limit+1로 느슨하게 한 대조 검사에서는 실제 초과 요청이 처리돼 request above the connection budget was served로 실패했다. 복구한 구현은 통과했다. 리스너 단독 검사는 포화 상태 Close의 Accept 해제·기존 연결 읽기 유지·중복 Close의 예산 회수를 검증한다.
+
+로컬 검증: Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet가 통과했다. 별도 연결 운영 문서에 기본값, backlog 대기, HTTP 503 미보장, FD 여유와 남는 공용 경계를 기록했다.
+
+Windows 최소 Go 1.25.0의 실제 CLI·리스너·설정 검사도 3회 통과했다. 공개 커밋 e225acbb1cc213a5db12f9092ecaad7e0c9deb58을 Windows·Linux에서 각각 go install했고, v0.0.0-20261024135231-e225acbb1cc2 버전과 max_connections가 포함된 기본 설정의 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.

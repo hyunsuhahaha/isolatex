@@ -20,13 +20,14 @@ import (
 )
 
 type Config struct {
-	Version       int              `yaml:"version"`
-	Listen        string           `yaml:"listen"`
-	AdminListen   string           `yaml:"admin_listen"`
-	MaxAdmitted   int              `yaml:"max_admitted_requests"`
-	MaxBodyBytes  int64            `yaml:"max_body_bytes"`
-	ShutdownGrace time.Duration    `yaml:"shutdown_grace"`
-	Bulkheads     map[string]Group `yaml:"bulkheads"`
+	Version        int              `yaml:"version"`
+	Listen         string           `yaml:"listen"`
+	AdminListen    string           `yaml:"admin_listen"`
+	MaxAdmitted    int              `yaml:"max_admitted_requests"`
+	MaxConnections ResourceLimit    `yaml:"max_connections,omitempty"`
+	MaxBodyBytes   int64            `yaml:"max_body_bytes"`
+	ShutdownGrace  time.Duration    `yaml:"shutdown_grace"`
+	Bulkheads      map[string]Group `yaml:"bulkheads"`
 }
 
 type Group struct {
@@ -159,7 +160,7 @@ func Load(filename string) (Config, error) {
 }
 
 func Decode(r io.Reader) (Config, error) {
-	c := Config{Listen: "127.0.0.1:8080", AdminListen: "127.0.0.1:9090", MaxAdmitted: 256, MaxBodyBytes: 1 << 20, ShutdownGrace: 10 * time.Second}
+	c := Config{Listen: "127.0.0.1:8080", AdminListen: "127.0.0.1:9090", MaxAdmitted: 256, MaxConnections: 1024, MaxBodyBytes: 1 << 20, ShutdownGrace: 10 * time.Second}
 	data, err := io.ReadAll(io.LimitReader(r, (1<<20)+1))
 	if err != nil {
 		return c, err
@@ -187,6 +188,9 @@ func (c Config) Validate() error {
 	}
 	if c.MaxAdmitted < 1 || c.MaxBodyBytes < 1 || c.ShutdownGrace <= 0 {
 		return fmt.Errorf("global limits and shutdown_grace must be positive")
+	}
+	if c.MaxConnections < 1 || uint64(c.MaxConnections) > uint64(^uint(0)>>1) {
+		return fmt.Errorf("max_connections must be a positive representable integer")
 	}
 	ports := map[int]string{}
 	for label, addr := range map[string]string{"listen": c.Listen, "admin_listen": c.AdminListen} {

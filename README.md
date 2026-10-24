@@ -24,7 +24,7 @@ Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프�
 Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 2026-10-24에 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 스냅샷이다.
 
 ```sh
-go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@85ad23d7693cf59693973bfbc165a081053af89b
+go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@e225acbb1cc213a5db12f9092ecaad7e0c9deb58
 isolatex -version
 ```
 
@@ -89,6 +89,7 @@ go run ./bench -healthy-group beta -healthy-path /b/work -fault-group alpha -fau
 
 관리형 앱은 foreground로 실행한다. 스스로 daemonize하거나 프로세스 그룹을 벗어나는 명령은 일반 관리형 워커의 수명 계약을 따르지 않는다.
 
+- `max_connections`는 공용 리스너가 수용한 TCP 연결 수의 상한이며 기본값은 1024다. 헤더 수신 전·keep-alive 유휴 연결도 포함한다. 관리 리스너는 별도 64개 상한을 사용한다. 포화 시 새 연결은 OS backlog에서 대기하며 HTTP 503을 보장하지 않는다. 경로 분류 전의 공용 한도이므로 그룹별 연결 예약은 아니다. [연결 경계와 운영 설정](docs/connection-limits.md)
 - `workers`는 프로세스 개수, `max_concurrent`는 그룹 전체의 전달 중 요청 수다. `queue_size: 0`이면 즉시 수용하거나 거부한다.
 - 모든 그룹의 `max_concurrent + queue_size` 합은 `max_admitted_requests` 이하여야 한다. 이 한도는 시작 시 용량 예약을 검증하는 상한이다. 요청마다 전역 슬롯을 선착순으로 경쟁하지 않으며, 그룹의 남는 용량을 다른 그룹이 빌리지 않는다. 기존에 합계보다 작은 전역 한도를 사용했다면 전역 한도를 올리거나 그룹별 한도를 줄여야 한다. 해당 설정은 이제 시작 오류다.
 - `/a`와 `/a/work`는 alpha, `/b`와 `/b/work`는 beta다. `/b-old`는 어느 그룹에도 일치하지 않아 404다. 경로는 세그먼트 경계를 포함한 최장 prefix로 분류하며 동일 prefix 중복은 설정 오류다.
@@ -132,7 +133,7 @@ circuit_breaker:
 
 외부 헬스체크를 경로별로 구성한다면 해당 경로의 그룹 준비 상태를 사용한다. 준비 상태 엔드포인트는 loopback 관리 포트에 있으므로 같은 호스트의 검사 에이전트나 접근 제어된 프록시를 통해 연계한다. 전역 `/readyz`는 모든 그룹을 합친 상태이므로 한 그룹 장애로 전체 게이트웨이를 제외하는 설정이 될 수 있다. 준비 상태는 신규 전달이 가능한 워커의 존재를 뜻하며 포화·Circuit Breaker 상태나 모든 앱 요청의 성공을 보장하지 않는다.
 
-느린 헤더·본문·클라이언트 쓰기에는 서버/요청 deadline을 적용한다. 전역 수용 한도는 분류 이후의 요청만 제한하고 TCP 연결 수 전체를 제한하지 않는다. 외부 트래픽 노출 시 별도의 TLS·인증·연결 보호가 필요하다.
+느린 헤더·본문·클라이언트 쓰기에는 서버/요청 deadline을 적용한다. `max_admitted_requests`는 경로 분류 이후의 요청 예산을, `max_connections`는 공용 리스너가 수용한 미종료 TCP 연결을 제한한다. OS backlog·호스트 전체 FD·클라이언트별 공정성은 이 한도 밖에 있다. 외부 트래픽 노출 시 별도의 TLS·인증·네트워크 연결 보호가 필요하다.
 
 ```sh
 go test ./... -count=1 -timeout=90s

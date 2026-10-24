@@ -40,6 +40,7 @@ func TestWorkerMemoryBudgetContainsAllocationFailure(t *testing.T) {
 		limited := scenario.limited
 		t.Run(scenario.name, func(t *testing.T) {
 			c := fixture(t)
+			c.MaxConnections = 1024
 			c.Version, c.Listen, c.AdminListen = 1, "127.0.0.1:8080", "127.0.0.1:9090"
 			c.MaxAdmitted, c.MaxBodyBytes, c.ShutdownGrace = 8, 1<<20, time.Second
 			g := c.Bulkheads["isolated"]

@@ -16,9 +16,12 @@ import (
 
 	"github.com/hyunsuhahaha/isolatex/internal/config"
 	"github.com/hyunsuhahaha/isolatex/internal/gateway"
+	"github.com/hyunsuhahaha/isolatex/internal/ingress"
 	"github.com/hyunsuhahaha/isolatex/internal/logging"
 	"github.com/hyunsuhahaha/isolatex/internal/supervisor"
 )
+
+const adminConnectionLimit = 64
 
 // Set by the distribution build; source builds keep explicit development values.
 var (
@@ -92,12 +95,15 @@ func run(output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer publicLn.Close()
+	publicIngress := ingress.New(publicLn, int(c.MaxConnections))
+	defer publicIngress.Close()
 	adminLn, err := net.Listen("tcp", c.AdminListen)
 	if err != nil {
 		return err
 	}
-	defer adminLn.Close()
+	// A public connection flood must not consume the admin listener's permits.
+	adminIngress := ingress.New(adminLn, adminConnectionLimit)
+	defer adminIngress.Close()
 	s := supervisor.New(c, logger)
 	// Worker lifetime outlives the drain grace; cancel only after HTTP shutdown.
 	if err = s.Start(context.Background()); err != nil {
@@ -105,6 +111,8 @@ func run(output io.Writer) error {
 	}
 	defer s.Stop()
 	g := gateway.New(c, s.Pools, logger)
+	g.RegisterConnections("public", int(c.MaxConnections), publicIngress.Active)
+	g.RegisterConnections("admin", adminConnectionLimit, adminIngress.Active)
 	if logs, ok := output.(interface{ Dropped() uint64 }); ok {
 		g.RegisterLogDrops(logs.Dropped)
 	}
@@ -115,8 +123,8 @@ func run(output io.Writer) error {
 	public, admin := server(g), server(g.Admin())
 	admin.WriteTimeout = 5 * time.Second
 	errors := make(chan error, 2)
-	go func() { errors <- public.Serve(publicLn) }()
-	go func() { errors <- admin.Serve(adminLn) }()
+	go func() { errors <- public.Serve(publicIngress) }()
+	go func() { errors <- admin.Serve(adminIngress) }()
 	logger.Info("runtime_started", "listen", c.Listen, "admin_listen", c.AdminListen)
 	var serveErr error
 	select {

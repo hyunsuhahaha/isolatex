@@ -104,7 +104,7 @@ func checkNativeDrain(t *testing.T, binary string, finish bool) {
 	if !finish {
 		grace = 250 * time.Millisecond
 	}
-	c := config.Config{Version: 1, Listen: address(ports[0]), AdminListen: address(ports[1]), MaxAdmitted: 4, MaxBodyBytes: 1024, ShutdownGrace: grace, Bulkheads: map[string]config.Group{}}
+	c := config.Config{Version: 1, Listen: address(ports[0]), AdminListen: address(ports[1]), MaxConnections: 1024, MaxAdmitted: 4, MaxBodyBytes: 1024, ShutdownGrace: grace, Bulkheads: map[string]config.Group{}}
 	for i, name := range []string{"alpha", "beta"} {
 		g := config.Group{
 			Process:       &config.Process{Command: []string{os.Args[0], "-test.run=^TestDrainWorkerHelper$"}, Workers: 1, PortStart: ports[i+2], Env: map[string]string{"ISOLATEX_DRAIN_WORKER": "1", "RELEASE_FILE": release}},
