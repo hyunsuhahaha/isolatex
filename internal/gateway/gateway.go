@@ -75,6 +75,17 @@ func fail(w http.ResponseWriter, status int, code string) {
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Explicitly reserved probes precede routing and draining rejection so
+	// remote balancers can observe why a group is ineligible during shutdown.
+	if prefix := g.cfg.RoutingProbePrefix; prefix != "" && (r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/")) {
+		w.Header().Set("Cache-Control", "no-store")
+		if r.URL.RawPath != "" || !config.ValidPath(r.URL.Path) {
+			fail(w, 400, "invalid_path")
+			return
+		}
+		g.serveRoutingProbe(w, r, strings.TrimPrefix(r.URL.Path, prefix+"/"))
+		return
+	}
 	if g.draining.Load() {
 		fail(w, 503, "draining")
 		return
@@ -271,6 +282,9 @@ func (w *trackingWriter) Write(data []byte) (int, error) {
 
 func (g *Gateway) Admin() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/routingz/{group}", func(w http.ResponseWriter, r *http.Request) {
+		g.serveRoutingProbe(w, r, r.PathValue("group"))
+	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200); _, _ = w.Write([]byte("ok\n")) })
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		if g.draining.Load() {

@@ -59,6 +59,12 @@ jobs:
           bash scripts/check-observability.sh .tools/prometheus/promtool
       - if: runner.os == 'Linux'
         run: go test -race ./... -count=1 -timeout=90s
+      - name: Verify independent group routing through real HAProxy
+        if: matrix.os == 'ubuntu-latest' && matrix.go == 'stable'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y haproxy
+          ISOLATEX_TEST_HAPROXY="$(command -v haproxy)" go test -race ./internal/gateway -run '^TestHAProxyIndependentGroupRouting$' -count=2 -timeout=90s
       - name: Verify delegated cgroup memory and task enforcement
         if: runner.os == 'Linux'
         run: sudo bash scripts/check-memory-linux.sh "$(id -un)" "$(command -v go)"
