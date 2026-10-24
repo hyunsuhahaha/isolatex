@@ -177,8 +177,10 @@ func (c Config) Validate() error {
 			if err != nil || u.Scheme != "http" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 				return fmt.Errorf("%s: upstream must be an http origin without credentials, path or query", name)
 			}
-			if _, _, err := net.SplitHostPort(u.Host); err != nil {
-				return fmt.Errorf("%s: upstream requires explicit port", name)
+			host, port, err := net.SplitHostPort(u.Host)
+			n, portErr := strconv.Atoi(port)
+			if err != nil || host == "" || portErr != nil || n < 1 || n > 65535 {
+				return fmt.Errorf("%s: upstream requires a host and explicit port 1..65535", name)
 			}
 		}
 		if g.Process == nil && g.Readiness.Path != "" && (!ValidPath(g.Readiness.Path) || g.Readiness.Interval <= 0 || g.Readiness.Timeout <= 0) {
