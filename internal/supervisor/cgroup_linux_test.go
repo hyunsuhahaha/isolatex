@@ -5,11 +5,14 @@ package supervisor
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -121,5 +124,132 @@ func TestMemoryCgroupContainsEscapedDescendant(t *testing.T) {
 	case <-otherDone:
 		t.Fatal("another worker cgroup was killed")
 	default:
+	}
+}
+
+// LockOSThread creates kernel tasks rather than merely Go goroutines.
+func TestTaskThreadHelper(t *testing.T) {
+	if os.Getenv("ISOLATEX_THREAD_HELPER") != "1" {
+		return
+	}
+	fmt.Println("thread-helper-started")
+	membership, err := os.ReadFile("/proc/self/cgroup")
+	if err != nil {
+		os.Exit(25)
+	}
+	fmt.Printf("cgroup:%s", membership)
+	release := make(chan struct{})
+	started := make(chan struct{})
+	for i := 0; i < 64; i++ {
+		go func() { runtime.LockOSThread(); started <- struct{}{}; <-release; runtime.UnlockOSThread() }()
+		<-started
+	}
+	fmt.Println("thread-helper-completed")
+	close(release)
+	os.Exit(0)
+}
+
+func TestTasksBudgetContainsThreadCreation(t *testing.T) {
+	parent := os.Getenv("ISOLATEX_TEST_CGROUP_PARENT")
+	if parent == "" {
+		t.Skip("requires delegated pids controller")
+	}
+	for _, limited := range []bool{false, true} {
+		t.Run(fmt.Sprint(limited), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestTaskThreadHelper$")
+			cmd.Env = append(os.Environ(), "ISOLATEX_THREAD_HELPER=1", "GOMAXPROCS=2")
+			var resources *config.Resources
+			if limited {
+				resources = &config.Resources{TasksMax: 16, CgroupParent: parent}
+			}
+			var output bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &output, &output
+			control, err := startManagedProcessWithResources(cmd, resources)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				control.signal(true)
+				if err := control.close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			err = cmd.Wait()
+			if ctx.Err() != nil {
+				t.Fatal("thread helper timed out")
+			}
+			text := output.String()
+			if !strings.Contains(text, "thread-helper-started") {
+				t.Fatalf("helper never executed: %v", err)
+			}
+			if limited {
+				if err == nil || strings.Contains(text, "thread-helper-completed") {
+					t.Fatalf("thread budget not enforced: %v", err)
+				}
+				var path string
+				for _, line := range strings.Split(text, "\n") {
+					if strings.HasPrefix(line, "cgroup:0::") {
+						path = filepath.Join("/sys/fs/cgroup", strings.TrimPrefix(line, "cgroup:0::"))
+					}
+				}
+				if path == "" {
+					t.Fatal("helper did not report cgroup")
+				}
+				events, readErr := os.ReadFile(filepath.Join(path, "pids.events"))
+				fields := strings.Fields(string(events))
+				if readErr != nil || len(fields) != 2 || fields[0] != "max" || fields[1] == "0" {
+					t.Fatalf("no kernel pids refusal: %q error=%v", events, readErr)
+				}
+				memory, readErr := os.ReadFile(filepath.Join(path, "memory.max"))
+				if readErr == nil && strings.TrimSpace(string(memory)) != "max" {
+					t.Fatalf("count-only budget imposed memory limit: %q", memory)
+				}
+			} else if err != nil || !strings.Contains(text, "thread-helper-completed") {
+				t.Fatalf("unlimited control failed: error=%v output=%s", err, text)
+			}
+		})
+	}
+}
+
+func TestTasksBudgetMissingControllerDoesNotExecuteWorker(t *testing.T) {
+	parent := os.Getenv("ISOLATEX_TEST_CGROUP_PARENT")
+	if parent == "" {
+		t.Skip("requires delegation")
+	}
+	// Do not enable pids for this subtree; the private worker must fail closed.
+	undelegated, err := os.MkdirTemp(parent, "isolatex-test-nopids-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Remove(undelegated); err != nil {
+			t.Error(err)
+		}
+	}()
+	marker := filepath.Join(t.TempDir(), "executed")
+	cmd := exec.Command("sh", "-c", `printf started > "$1"`, "isolatex-marker", marker)
+	control, err := startManagedProcessWithResources(cmd, &config.Resources{TasksMax: 32, CgroupParent: undelegated})
+	if err == nil {
+		control.signal(true)
+		_ = cmd.Wait()
+		_ = control.close()
+		t.Fatal("missing pids controller silently ignored")
+	}
+	if !strings.Contains(err.Error(), "pids.max") {
+		t.Fatalf("unexpected rejection: %v", err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("worker executed without budget: %v", err)
+	}
+	entries, err := os.ReadDir(undelegated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			t.Fatalf("failed start leaked cgroup %s", entry.Name())
+		}
 	}
 }

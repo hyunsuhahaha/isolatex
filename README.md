@@ -13,7 +13,7 @@
 
 공유 게이트웨이·호스트·DB는 여전히 장애 전파 경로가 될 수 있다. 현재 보장과 검증 결과는 이 경계를 기준으로 설명한다.
 
-현재 **v0.4 개발 중**이다. 경로별 실행·대기 제한, 프로세스 관리, rolling-window Circuit Breaker, 주기적 Health Check와 복구, Prometheus 관측을 구현했다. Linux cgroup v2와 Windows Job Objects로 선택적 워커 트리 메모리 상한을 적용한다. [메모리 격벽 설정](docs/memory-limits.md) · [자원 조건을 맞춘 비교 실험](docs/experiments.md)
+현재 **v0.4 개발 중**이다. 경로별 실행·대기 제한, 프로세스 관리, rolling-window Circuit Breaker, 주기적 Health Check와 복구, Prometheus 관측을 구현했다. Linux cgroup v2와 Windows Job Objects로 선택적 워커 트리 메모리 상한을 적용한다. [메모리 격벽 설정](docs/memory-limits.md) · [태스크·프로세스 생성 한도](docs/task-limits.md) · [자원 조건을 맞춘 비교 실험](docs/experiments.md)
 
 ## 실행
 

@@ -51,10 +51,12 @@ type Process struct {
 	Resources *Resources        `yaml:"resources"`
 }
 
-// MemoryMaxBytes applies to one managed worker and its descendants, not to
-// the entire group. Linux and Windows use different kernel accounting models.
+// Resources apply to one managed worker and its descendants, not the group.
+// TasksMax counts Linux threads; ProcessesMax counts Windows processes.
 type Resources struct {
 	MemoryMaxBytes int64  `yaml:"memory_max_bytes"`
+	TasksMax       int64  `yaml:"tasks_max"`
+	ProcessesMax   int64  `yaml:"processes_max"`
 	CgroupParent   string `yaml:"cgroup_parent"`
 }
 
@@ -62,20 +64,29 @@ func (r *Resources) Validate() error {
 	if r == nil {
 		return nil
 	}
-	if r.MemoryMaxBytes <= 0 || uint64(r.MemoryMaxBytes) > uint64(^uintptr(0)) {
-		return fmt.Errorf("resources requires a positive representable memory_max_bytes")
+	if r.MemoryMaxBytes < 0 || uint64(r.MemoryMaxBytes) > uint64(^uintptr(0)) || r.TasksMax < 0 || r.ProcessesMax < 0 || r.ProcessesMax > math.MaxUint32 {
+		return fmt.Errorf("resources limits must be nonnegative and representable")
+	}
+	if r.MemoryMaxBytes == 0 && r.TasksMax == 0 && r.ProcessesMax == 0 {
+		return fmt.Errorf("resources requires at least one positive limit")
 	}
 	switch runtime.GOOS {
 	case "windows":
+		if r.TasksMax != 0 {
+			return fmt.Errorf("resources.tasks_max is Linux-only; processes_max counts Windows processes")
+		}
 		if r.CgroupParent != "" {
 			return fmt.Errorf("resources.cgroup_parent is Linux-only")
 		}
 	case "linux":
+		if r.ProcessesMax != 0 {
+			return fmt.Errorf("resources.processes_max is Windows-only; tasks_max counts Linux threads")
+		}
 		if !filepath.IsAbs(r.CgroupParent) || filepath.Clean(r.CgroupParent) != r.CgroupParent {
 			return fmt.Errorf("resources requires an absolute clean cgroup_parent on Linux")
 		}
 	default:
-		return fmt.Errorf("managed memory limits are unsupported on %s", runtime.GOOS)
+		return fmt.Errorf("managed resource limits are unsupported on %s", runtime.GOOS)
 	}
 	return nil
 }

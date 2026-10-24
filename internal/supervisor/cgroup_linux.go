@@ -40,13 +40,17 @@ func newWorkerCgroup(resources *config.Resources) (*workerCgroup, error) {
 		}
 		return nil, err
 	}
-	// A missing controller/interface is a startup error. Memory includes the
-	// descendant hierarchy; disable swap and make cgroup OOM a worker-wide event.
-	for _, setting := range []struct{ name, value string }{
-		{"memory.max", strconv.FormatInt(resources.MemoryMaxBytes, 10)},
-		{"memory.swap.max", "0"},
-		{"memory.oom.group", "1"},
-	} {
+	// Only require controllers explicitly requested by the operator.
+	type setting struct{ name, value string }
+	var settings []setting
+	if resources.MemoryMaxBytes > 0 {
+		settings = append(settings, setting{"memory.max", strconv.FormatInt(resources.MemoryMaxBytes, 10)},
+			setting{"memory.swap.max", "0"}, setting{"memory.oom.group", "1"})
+	}
+	if resources.TasksMax > 0 {
+		settings = append(settings, setting{"pids.max", strconv.FormatInt(resources.TasksMax, 10)})
+	}
+	for _, setting := range settings {
 		if err := os.WriteFile(filepath.Join(path, setting.name), []byte(setting.value), 0600); err != nil {
 			return fail(fmt.Errorf("configure %s: %w", setting.name, err))
 		}

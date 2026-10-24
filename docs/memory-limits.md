@@ -13,7 +13,7 @@ process:
     cgroup_parent: /sys/fs/cgroup/system.slice/isolatex.service
 ```
 
-양의 바이트 수를 지정한다. `resources: {}`나 0은 오류다. 워커 2개에 256MiB를 지정하면 그룹 전체 256MiB가 아니라 **각 트리 256MiB**다. 상한은 RAM 예약이 아니므로 런타임과 다른 서비스의 여유를 포함해 호스트 전체 예산을 잡아야 한다. 너무 작은 한도는 앱의 로더·런타임 시작부터 실패시킬 수 있다.
+양의 바이트 수를 지정한다. 메모리 값 0·생략은 메모리 한도를 비활성화하며, `resources`에는 적어도 하나의 양수 한도가 필요하다. `resources: {}`는 오류다. [태스크·프로세스 한도](task-limits.md)와 독립적으로 또는 함께 사용할 수 있다. 워커 2개에 256MiB를 지정하면 그룹 전체 256MiB가 아니라 **각 트리 256MiB**다. 상한은 RAM 예약이 아니므로 런타임과 다른 서비스의 여유를 포함해 호스트 전체 예산을 잡아야 한다. 너무 작은 한도는 앱의 로더·런타임 시작부터 실패시킬 수 있다.
 
 ## OS별 처리
 
@@ -33,7 +33,7 @@ Windows는 한도를 설정한 Job에 정지 워커를 등록한 뒤 실행한�
 
 cgroup v2의 memory controller와 `memory.swap.max`, `memory.oom.group`, `cgroup.kill`, `clone3`의 cgroup FD가 필요하다. 부모 경로는 관리자가 위임한 디렉터리이며 memory controller를 자식에 활성화해 두어야 한다. 런타임도 같은 위임 범위의 별도 자식 cgroup에서 실행해야 생성 시 이동 권한을 만족한다. 일반 임시 폴더나 다른 위임 범위의 경로는 사용할 수 없다. IsolateX는 호스트 전역 컨트롤러 정책을 바꾸지 않는다.
 
-[예제 service](../examples/memory/isolatex.service)는 systemd 254 이상에서 `Delegate=memory`와 `DelegateSubgroup=manager`로 이를 구성한다. 운영 계정·설치/설정 경로·service 이름을 실제 환경에 맞춰 바꾼다. service 이름이나 slice를 바꾸면 YAML의 `cgroup_parent`와 `ExecStartPre` 경로도 함께 바꿔야 한다. [systemd 위임 계약](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html#DelegateSubgroup=)을 참고한다.
+[예제 service](../examples/memory/isolatex.service)는 systemd 254 이상에서 `Delegate=memory pids`와 `DelegateSubgroup=manager`로 이를 구성한다. 운영 계정·설치/설정 경로·service 이름을 실제 환경에 맞춰 바꾼다. service 이름이나 slice를 바꾸면 YAML의 `cgroup_parent`와 `ExecStartPre` 경로도 함께 바꿔야 한다. [systemd 위임 계약](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html#DelegateSubgroup=)을 참고한다.
 
 예제의 `OOMPolicy=continue`는 워커 OOM을 서비스 전체 중단으로 확대하지 않기 위한 설정이다. `stop`·`kill` 정책이나 상위 서비스 매니저 정책이 전체 런타임을 종료하면 보호 그룹도 영향을 받는다. [systemd OOM 정책](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html#OOMPolicy=)과 호스트 정책을 함께 검토한다.
 
