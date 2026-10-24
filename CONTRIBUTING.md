@@ -34,3 +34,5 @@ Linux·macOS의 `TestProcessGroupContainsDescendantsAndPreservesAnotherWorker`�
 ## 배포
 
 배포 묶음은 `bash scripts/build-dist.sh dev`로 재현한다. 생성된 실행 파일과 도구는 커밋하지 않는다. 정식 태그·릴리스 발행은 유지 관리자가 검증 기록과 호환성 영향을 검토한 뒤 진행한다.
+
+Linux/macOS에서는 압축을 푼 네이티브 묶음을 `bash scripts/smoke-dist.sh <추출 폴더>`로 검사한다. Go·curl과 기본 설정의 빈 포트가 필요하다. CI stable Unix 행도 이 경로로 실제 묶음의 런타임·워커를 실행한다. 절차는 [배포 검증](docs/distribution.md)을 따른다.

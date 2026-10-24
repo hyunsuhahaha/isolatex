@@ -24,7 +24,7 @@ Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프�
 Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 2026-10-24에 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 스냅샷이다.
 
 ```sh
-go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@1ffb18ddc45c22cef3c96ba13129f87d98ce3c4e
+go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@3e7d682c0e152204fd8ac85c9ac5a6eaa5f78a8c
 isolatex -version
 ```
 
@@ -53,7 +53,7 @@ Linux·macOS에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 �
 
 `-version`은 설정이나 워커를 시작하지 않고 버전·소스 커밋·빌드 시간을 출력한다. 로그는 최대 256레코드, 레코드당 64KiB의 비동기 큐를 거쳐 전달한다. 저장 대상이 멈추거나 큐가 넘쳐도 요청과 워커 감시를 기다리게 하지 않는다. 드롭·전달 실패는 `isolatex_dropped_log_records_total`로 집계한다. 종료 시 로그 전달 대기는 최대 250ms이며 전달을 보장하지 않는다.
 
-배포 묶음 생성은 Linux/WSL2에서 `bash scripts/build-dist.sh dev`로 실행한다. Linux amd64/arm64, Windows amd64, macOS amd64/arm64용 실행 파일·데모·설정·문서와 `SHA256SUMS`를 `dist/`에 만든다. GitHub의 수동 `distribution` 워크플로도 동일 스크립트를 사용해 artifact를 생성하며 릴리스를 게시하지 않는다. [배포 검증](docs/distribution.md) · [기여 방법](CONTRIBUTING.md)
+배포 묶음 생성은 Linux/WSL2 또는 macOS에서 `bash scripts/build-dist.sh dev`로 실행한다. Linux amd64/arm64, Windows amd64, macOS amd64/arm64용 실행 파일·데모·설정·문서와 `SHA256SUMS`를 `dist/`에 만든다. Linux/macOS 추출본은 `bash scripts/smoke-dist.sh <추출 폴더>`로 양방향 장애 검사를 실행한다. GitHub의 수동 `distribution` 워크플로도 동일 빌드 스크립트를 사용해 artifact를 생성하며 릴리스를 게시하지 않는다. [배포 검증](docs/distribution.md) · [기여 방법](CONTRIBUTING.md)
 
 ## 장애 데모
 

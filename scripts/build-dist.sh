@@ -2,11 +2,19 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Build on Linux (including WSL2). No tags or releases are published here.
+# Build on Linux (including WSL2) or macOS. No releases are published here.
 version="${1:-dev}"
 output="${2:-dist}"
 if [[ ! "$version" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo 'version must contain only letters, digits, dots, underscores and hyphens' >&2
+  exit 1
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+  digest_command=(sha256sum)
+elif command -v shasum >/dev/null 2>&1; then
+  digest_command=(shasum -a 256)
+else
+  echo 'building distributions requires sha256sum or shasum' >&2
   exit 1
 fi
 mkdir -p "$output"
@@ -39,4 +47,4 @@ for target in ${TARGETS:-linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darw
   archives+=("$archive")
   echo "$dist_root/$archive"
 done
-(cd "$dist_root" && sha256sum "${archives[@]}" > SHA256SUMS)
+(cd "$dist_root" && "${digest_command[@]}" "${archives[@]}" > SHA256SUMS)
