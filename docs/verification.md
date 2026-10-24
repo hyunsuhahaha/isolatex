@@ -206,3 +206,13 @@ Windows의 종료 범위·Job 중첩 등록 실패·강제 종료 hook 제한·W
 공개 모듈 커밋 `1ffb18ddc45c22cef3c96ba13129f87d98ce3c4e`를 별도 GOBIN에 설치했다. 버전 `v0.0.0-20261024010702-1ffb18ddc45c`와 기본 YAML 검사를 통과한 그 실행 파일을 Windows에서 직접 실행해 네 워커를 준비시켰다. 양방향 smoke에서 보호 요청 각각 41개 성공·PID 유지·장애 워커 재시작이 확인됐다. Ctrl+C 후 `workers_stopped`와 네 PID 종료·8080/9090/9100–9101/9200–9201의 재바인딩을 확인했다.
 
 같은 설치본을 다시 실행해 종료 전부터 런타임의 프로세스 핸들을 별도 관찰자가 유지했다. Ctrl+C 후 실제 CLI 종료 코드는 0이었고 워커·포트가 다시 모두 회수됐다. PowerShell PTY 래퍼는 취소 코드 1을 반환하므로 이를 CLI 종료 코드로 오인하지 않았다. README 공개 설치 스냅샷도 Windows Job 구현이 포함된 이 커밋으로 갱신했다.
+
+`829b409`의 7개 구성, push·PR 합계 14개 원격 check가 모두 통과한 뒤 기본 브랜치에 병합했다. Windows stable·Go 1.25.x의 전체 테스트에 새 Job 검사가 포함됐다.
+
+## 2026-10-24 — macOS 프로세스 그룹과 SIGTERM 무시 자손
+
+Linux의 프로세스 그룹 구현을 macOS에도 적용했다. Linux·Darwin 공통 검사는 직접 부모만 종료하면 자손이 살아 있는 음성 대조와 관리형 그룹의 자손 종료·별도 워커 생존을 비교한다. 정리 완료 뒤 제어 객체는 추가 신호를 차단한다. 그룹을 벗어난 자손과 런타임 SIGKILL의 한계, foreground 실행 계약도 문서화했다.
+
+Linux 전체 race 실행 중 자손이 `/proc` 조회 도중 사라지며 ENOENT 외에 ESRCH를 반환하는 검사 경합을 발견했다. 두 경우를 종료 상태로 처리한 후 그룹 대조 검사가 race 100회를 통과했다. 실제 Supervisor는 SIGTERM을 무시하고 stdout/stderr를 상속한 자손이 있는 워커를 크래시·복구시켜 이전 자손 제거, 새 워커·자손 생성, 다른 그룹의 PID·Ready·HTTP 응답 유지와 최종 Stop 회수를 race 10회 확인했다.
+
+최종 Linux 전체 race·vet와 Go 1.25.0 Windows supervisor 전체 검사가 통과했다. 같은 Go 1.25.0으로 Darwin amd64·arm64 supervisor 테스트 실행 파일의 크로스 컴파일도 통과했다. 로컬에서 macOS 실행을 주장하지 않으며 네이티브 macOS 두 아키텍처의 동작은 원격 CI에서 구분해 확인한다.

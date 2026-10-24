@@ -31,14 +31,20 @@ func TestWorkerHelper(t *testing.T) {
 		os.Exit(23)
 	}
 	if filename := os.Getenv("ISOLATEX_TEST_CHILD_PID_FILE"); filename != "" {
+		resistant := os.Getenv("ISOLATEX_TEST_CHILD_MODE") == "ignore-term"
 		child := exec.Command(os.Args[0], "-test.run=^TestWindowsJobHelper$")
+		if resistant {
+			child = exec.Command("sh", "-c", `trap '' TERM; printf '%s' "$$" > "$1"; exec sleep 60`, "isolatex-resistant-child", filename)
+		}
 		child.Env = append(os.Environ(), "ISOLATEX_JOB_TEST_MODE=leaf")
 		child.Stdout, child.Stderr = os.Stdout, os.Stderr
 		if err := child.Start(); err != nil {
 			os.Exit(25)
 		}
-		if err := os.WriteFile(filename, []byte(strconv.Itoa(child.Process.Pid)), 0600); err != nil {
-			os.Exit(26)
+		if !resistant {
+			if err := os.WriteFile(filename, []byte(strconv.Itoa(child.Process.Pid)), 0600); err != nil {
+				os.Exit(26)
+			}
 		}
 	}
 	mux := http.NewServeMux()

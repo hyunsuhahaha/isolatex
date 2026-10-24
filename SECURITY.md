@@ -8,7 +8,7 @@ IsolateX는 요청·프로세스 장애의 영향 범위를 줄이는 격벽이�
 - 관리 포트는 loopback 전용이며 인증이 없다. 신뢰할 수 없는 프로세스가 있는 호스트에서의 관리자 접근 제어를 제공하지 않는다.
 - TLS 종단·사용자 인증·전체 TCP 연결 수 보호는 외부 운영 환경에서 구성한다. 요청 수용 한도는 HTTP 경로 분류 이후에 적용한다.
 - 런타임은 요청 URL·query·헤더를 요청 로그에 넣지 않는다. 앱 stdout/stderr는 그대로 전달하므로 앱이 출력한 비밀값을 제거해 주지는 않는다.
-- Linux의 프로세스 그룹 종료는 그룹을 탈출한 자손이나 런타임 SIGKILL 이후 정리를 보장하지 않는다. Windows는 소유자·워커별 Job Object로 일반적인 CreateProcess 자손의 수명을 관리한다. WMI나 외부 서비스가 대신 실행한 프로세스, 악성 동일 권한 프로세스를 격리하는 보장은 아니다. Job 생성·등록 실패 시 관리형 워커를 실행하지 않으며 직접 자식 방식으로 우회하지 않는다. [Windows 수명 경계](docs/windows-processes.md)
+- Linux·macOS의 프로세스 그룹 종료는 그룹을 탈출한 자손이나 런타임 SIGKILL 이후 정리를 보장하지 않는다. Windows는 소유자·워커별 Job Object로 일반적인 CreateProcess 자손의 수명을 관리한다. WMI나 외부 서비스가 대신 실행한 프로세스, 악성 동일 권한 프로세스를 격리하는 보장은 아니다. Job 생성·등록 실패 시 관리형 워커를 실행하지 않으며 직접 자식 방식으로 우회하지 않는다. [Unix 수명 경계](docs/process-groups.md) · [Windows 수명 경계](docs/windows-processes.md)
 
 이 경계를 넘어서는 보안을 주장하지 않는다. 자세한 격리 계약은 [설계](docs/design.md)와 [격벽 문서](docs/bulkheads.md)를 참고한다.
 
