@@ -108,13 +108,7 @@ func checkProcessGroup(t *testing.T, legacy bool) {
 		}
 		t.Log("direct-child termination left the descendant alive")
 	} else {
-		waitFor(t, func() bool {
-			stopped, err := processGroupDescendantStopped(child)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return stopped
-		})
+		waitForGroupDescendantStop(t, child, "group termination")
 		childStopped = true
 	}
 	control.close()
@@ -153,6 +147,25 @@ func processGroupDescendantStopped(pid int) (bool, error) {
 	return strings.HasPrefix(state, "Z"), nil
 }
 
+func waitForGroupDescendantStop(t *testing.T, pid int, phase string) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		stopped, err := processGroupDescendantStopped(pid)
+		if err != nil {
+			t.Fatalf("%s descendant state: %v", phase, err)
+		}
+		if stopped {
+			return
+		}
+		if time.Now().After(deadline) {
+			group, _ := syscall.Getpgid(pid)
+			t.Fatalf("%s: descendant %d in group %d survived termination", phase, pid, group)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func TestManagedGroupReapsTermResistantDescendantOnCrashAndStop(t *testing.T) {
 	c := fixture(t)
 	filename := filepath.Join(t.TempDir(), "resistant-child.pid")
@@ -164,30 +177,34 @@ func TestManagedGroupReapsTermResistantDescendantOnCrashAndStop(t *testing.T) {
 	if err := s.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	var children []int
+	children := map[int]bool{}
 	t.Cleanup(func() {
 		s.Stop()
-		for _, pid := range children {
+		for pid := range children {
 			if stopped, _ := processGroupDescendantStopped(pid); !stopped {
 				_ = syscall.Kill(pid, syscall.SIGKILL)
 			}
 		}
 	})
 	waitFor(t, func() bool { return s.Pools["isolated"].Ready() == 1 && s.Pools["normal"].Ready() == 1 })
-	childPID := func(previous int) int {
+	childPID := func(previous, group int) int {
 		t.Helper()
 		pid := 0
 		waitFor(t, func() bool {
 			data, _ := os.ReadFile(filename)
 			pid, _ = strconv.Atoi(string(data))
-			return pid > 0 && pid != previous
+			if pid <= 0 || pid == previous {
+				return false
+			}
+			actualGroup, err := syscall.Getpgid(pid)
+			return err == nil && actualGroup == group
 		})
-		children = append(children, pid)
+		children[pid] = true
 		return pid
 	}
 	before := s.Pools["isolated"].Snapshot()[0]
 	normal := s.Pools["normal"].Snapshot()[0]
-	oldChild := childPID(0)
+	oldChild := childPID(0, before.PID)
 	if pgid, err := syscall.Getpgid(oldChild); err != nil || pgid != before.PID {
 		t.Fatalf("descendant outside worker group: %d %v", pgid, err)
 	}
@@ -201,9 +218,8 @@ func TestManagedGroupReapsTermResistantDescendantOnCrashAndStop(t *testing.T) {
 		current := s.Pools["isolated"].Snapshot()[0]
 		return current.Ready && current.PID != before.PID && current.Restarts > before.Restarts
 	})
-	if stopped, err := processGroupDescendantStopped(oldChild); err != nil || !stopped {
-		t.Fatalf("old resistant descendant survived restart: %v %v", stopped, err)
-	}
+	waitForGroupDescendantStop(t, oldChild, "restart")
+	delete(children, oldChild)
 	other := s.Pools["normal"].Snapshot()[0]
 	if !other.Ready || other.PID != normal.PID || other.Restarts != normal.Restarts {
 		t.Fatalf("another group changed: before=%+v after=%+v", normal, other)
@@ -218,9 +234,8 @@ func TestManagedGroupReapsTermResistantDescendantOnCrashAndStop(t *testing.T) {
 	if err != nil || resp.StatusCode != 200 || identity["pid"] != normal.PID {
 		t.Fatalf("protected worker failed: status=%d identity=%v error=%v", resp.StatusCode, identity, err)
 	}
-	newChild := childPID(oldChild)
+	newChild := childPID(oldChild, s.Pools["isolated"].Snapshot()[0].PID)
 	s.Stop()
-	if stopped, err := processGroupDescendantStopped(newChild); err != nil || !stopped {
-		t.Fatalf("replacement resistant descendant survived Stop: %v %v", stopped, err)
-	}
+	waitForGroupDescendantStop(t, newChild, "Stop")
+	delete(children, newChild)
 }

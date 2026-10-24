@@ -216,3 +216,5 @@ Linux의 프로세스 그룹 구현을 macOS에도 적용했다. Linux·Darwin �
 Linux 전체 race 실행 중 자손이 `/proc` 조회 도중 사라지며 ENOENT 외에 ESRCH를 반환하는 검사 경합을 발견했다. 두 경우를 종료 상태로 처리한 후 그룹 대조 검사가 race 100회를 통과했다. 실제 Supervisor는 SIGTERM을 무시하고 stdout/stderr를 상속한 자손이 있는 워커를 크래시·복구시켜 이전 자손 제거, 새 워커·자손 생성, 다른 그룹의 PID·Ready·HTTP 응답 유지와 최종 Stop 회수를 race 10회 확인했다.
 
 최종 Linux 전체 race·vet와 Go 1.25.0 Windows supervisor 전체 검사가 통과했다. 같은 Go 1.25.0으로 Darwin amd64·arm64 supervisor 테스트 실행 파일의 크로스 컴파일도 통과했다. 로컬에서 macOS 실행을 주장하지 않으며 네이티브 macOS 두 아키텍처의 동작은 원격 CI에서 구분해 확인한다.
+
+첫 원격 Go 1.25.x Linux 검사에서는 Stop 직후 커널 상태를 즉시 읽어 자손 종료 전의 짧은 구간을 실패로 판정했다. 신호 전달의 비동기 계약에 맞춰 최대 3초 안의 실제 종료를 확인하도록 바꾸고 대체 자손의 그룹 ID도 현재 워커와 일치할 때만 추적했다. 종료가 확인된 PID는 실패 정리 대상에서 제거한다. 수정 뒤 Go 1.25.0 Linux의 그룹·SIGTERM 무시 검사 20회가 통과했다.
