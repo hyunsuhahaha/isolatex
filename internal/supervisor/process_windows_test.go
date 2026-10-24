@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -50,12 +51,20 @@ func TestWindowsJobHelper(t *testing.T) {
 			time.Sleep(5 * time.Millisecond)
 		}
 	}
-	if mode == "tree" || mode == "tree-exit" {
-		child := jobHelperCommand("leaf")
-		if err := child.Start(); err != nil {
-			os.Exit(32)
+	if mode == "tree" || mode == "tree-exit" || mode == "wide-tree" {
+		count := 1
+		if mode == "wide-tree" {
+			count = 20
 		}
-		if err := os.WriteFile(os.Getenv("LEAF_PID_FILE"), []byte(strconv.Itoa(child.Process.Pid)), 0600); err != nil {
+		var pids []string
+		for range count {
+			child := jobHelperCommand("leaf")
+			if err := child.Start(); err != nil {
+				os.Exit(32)
+			}
+			pids = append(pids, strconv.Itoa(child.Process.Pid))
+		}
+		if err := os.WriteFile(os.Getenv("LEAF_PID_FILE"), []byte(strings.Join(pids, "\n")), 0600); err != nil {
 			os.Exit(33)
 		}
 		if mode == "tree-exit" {
