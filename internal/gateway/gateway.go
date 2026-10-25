@@ -49,6 +49,9 @@ func New(c config.Config, pools map[string]*pool.Pool, logger *slog.Logger) *Gat
 	for name, cfg := range c.Bulkheads {
 		dialer := &requestDialer{dial: (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext}
 		t := &http.Transport{Proxy: nil, DialContext: dialer.DialContext, MaxIdleConns: cfg.MaxConcurrent, MaxIdleConnsPerHost: cfg.MaxConcurrent, MaxConnsPerHost: cfg.MaxConcurrent, IdleConnTimeout: 30 * time.Second, ResponseHeaderTimeout: cfg.RequestTimeout, MaxResponseHeaderBytes: 64 << 10, DisableCompression: true}
+		t.DialTLSContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			return dialer.DialTLSContext(ctx, network, address, t.TLSClientConfig)
+		}
 		b := &group{name: name, cfg: cfg, pool: pools[name], gate: newGate(cfg.MaxConcurrent, cfg.QueueSize), transport: t, dialer: dialer, breaker: breaker.New(cfg.CircuitBreaker)}
 		b.registerMetrics(g.registry)
 		g.groups = append(g.groups, b)

@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 )
 
@@ -12,12 +13,51 @@ type requestDialer struct {
 }
 
 func (d *requestDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	ctx, cancel := requestDialContext(ctx)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return d.dial(ctx, network, address)
+}
+
+// DialTLSContext owns both TCP connection establishment and TLS negotiation.
+// Letting Transport perform TLS after DialContext returns would put the
+// handshake back on its detached context and lose the original request budget.
+func (d *requestDialer) DialTLSContext(ctx context.Context, network, address string, config *tls.Config) (net.Conn, error) {
+	ctx, cancel := requestDialContext(ctx)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if config == nil {
+		config = &tls.Config{}
+	} else {
+		config = config.Clone()
+	}
+	if config.ServerName == "" {
+		host, _, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		config.ServerName = host
+	}
+	conn, err := d.dial(ctx, network, address)
+	if err != nil {
+		return nil, err
+	}
+	tlsConn := tls.Client(conn, config)
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return tlsConn, nil
+}
+
+func requestDialContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	requestCtx, ok := ctx.Value(dialRequestContextKey{}).(context.Context)
 	if !ok {
-		return d.dial(ctx, network, address)
-	}
-	if err := requestCtx.Err(); err != nil {
-		return nil, err
+		return ctx, func() {}
 	}
 	// net/http intentionally detaches dial cancellation for connection reuse.
 	// Keep its own cancellation too (e.g. CloseIdleConnections), but do not
@@ -29,6 +69,8 @@ func (d *requestDialer) DialContext(ctx context.Context, network, address string
 		ctx, cancel = context.WithCancel(ctx)
 	}
 	stop := context.AfterFunc(requestCtx, cancel)
-	defer func() { stop(); cancel() }()
-	return d.dial(ctx, network, address)
+	if requestCtx.Err() != nil {
+		cancel()
+	}
+	return ctx, func() { stop(); cancel() }
 }

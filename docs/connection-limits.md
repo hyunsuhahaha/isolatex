@@ -76,3 +76,11 @@ Gateway가 upstream 5xx 헤더를 확인한 뒤 클라이언트가 응답 본문
 차단기 표본과 요청 outcome은 서로 다른 질문에 답한다. 확인된 upstream 503 뒤 클라이언트가 연결을 끊으면 차단기 실패는 증가하면서 요청 outcome은 `stream_error`, `canceled` 또는 `timeout`일 수 있다. outcome은 전송이 끝난 방식을 나타내므로 확인된 5xx가 항상 `upstream_5xx` outcome으로 기록되는 것은 아니다. `/status`의 그룹별 `circuit_breaker.window_failures`와 `isolatex_breaker_state`, 전송 오류 outcome을 함께 확인한다.
 
 응답 복사와 요청 본문 복사는 서로 다른 goroutine에서 끝날 수 있다. 전체 요청이 timeout이고 아직 본문 읽기가 끝나지 않았다면, 차단기 귀속을 정하기 전에 마지막 본문 읽기 결과를 최대 250ms 기다린다. 본문을 모두 받은 고정 길이 요청이나 확인된 backend 5xx는 기다리지 않는다. 이 대기는 기존 오류 응답 grace와 같은 크기의 별도 상한이며, 커스텀 reader가 결과를 늦게 반환해도 무기한 슬롯을 유지하지 않는다. 상한 안에 확인된 본문 timeout만 request_body_timeout으로 분류한다.
+
+## HTTPS upstream의 TLS handshake 예산
+
+HTTPS upstream의 연결 수립은 TCP 연결부터 TLS handshake 완료까지 원래 그룹 요청의 남은 기한과 취소를 따른다. ClientHello 이후 서버가 응답하지 않아도 요청이 끝난 뒤 미완료 TLS 소켓을 다음 요청의 연결 예열용으로 남기지 않는다. handshake 실패·취소 때 소켓을 닫아 해당 upstream의 연결 자리를 회수한다. TCP connect의 기존 3초 상한은 유지하며 TLS 단계는 그룹 요청의 남은 예산을 사용한다.
+
+전체 요청 기한 초과는 기존 504와 upstream 실패 정책, 클라이언트 취소는 차단기 표본 제외 정책을 유지한다. 다른 그룹은 별도 연결 풀과 요청 예산을 사용한다. 이 정책은 전체 outbound FD 예약을 추가하는 기능이 아니며 DNS resolver의 내부 OS 작업까지 즉시 회수한다는 보장은 아니다.
+
+TLS 인증서·호스트 이름 검증은 기본 TLS 정책대로 수행한다. handshake가 성공하면 취소 연결을 해제해 정상 keep-alive 재사용을 유지한다. Gateway 내부에서 TLS 설정을 사용하면 연결별 복제본에 대상 호스트 이름을 넣어 공유 설정을 바꾸지 않는다. 운영자는 504와 upstream TLS 연결 실패를 함께 확인하고 인증서 신뢰·만료·이름 불일치와 서버 handshake 정체를 구분해야 한다.
