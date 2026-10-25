@@ -516,3 +516,5 @@ Gateway에서 검증한 요청 문맥 복원과 TLS dial을 internal/requestdial
 실제 회귀 검사는 실패 5회 뒤 활성 TLS 소켓이 누적되지 않는지(비동기 회수의 일시 중첩을 포함해 최대 2개), 해당 upstream이 미준비인지, 정상 그룹 점검이 5회 이상 성공하는지 확인한다. Stop 뒤 소켓 0도 확인한다. 별도 검사는 10초 점검 기한에서 handshake가 시작된 직후 Stop을 호출해 1초 안에 감시 종료·소켓 회수·stopped 상태가 되는지 검사한다. 공통화한 Gateway의 TLS 기한·취소·인증서 거부·신뢰 연결 재사용과 Transport 자체 취소 회귀도 함께 실행했다.
 
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 신규 준비 상태 TLS 회귀는 Linux race 10회, Gateway TLS/Transport 취소 회귀와 함께 Windows 최소 Go 1.25.0에서 5회 통과했다.
+
+공개 커밋 e3d18adfb8dd699263ec939feb28471e628ee405를 Windows·Linux에서 각각 go install하고 v0.0.0-20261025022117-e3d18adfb8dd 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
