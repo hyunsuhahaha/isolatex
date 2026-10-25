@@ -494,3 +494,15 @@ Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.
 지연된 본문 오류 회귀를 포함한 최종 구현도 Windows 전체 테스트·vet와 실제 HAProxy를 포함한 Linux 전체 race·vet를 통과했다. 최종 reset/본문 시간 초과 검사는 Linux race에서 5회, 신규 조건과 형식 오류 검사는 Windows 최소 Go 1.25.0에서 2회 통과했다.
 
 최종 생산 커밋 982d8753356e93637c6af77f22bb00e37106fe3a도 Windows·Linux 공개 go install로 설치하고 v0.0.0-20261025002025-982d8753356e 버전·기본 설정 -check 성공을 확인했다. README 고정값은 이 최종 스냅샷을 가리킨다.
+
+## HTTPS handshake의 요청 예산 회수 (2026-10-25)
+
+실제 TCP 서버가 TLS ClientHello를 받고 ServerHello를 보내지 않도록 했다. 300ms 그룹 요청 기한 뒤 504가 반환됐지만 수정 전에는 추가 1초를 기다려도 활성 TLS 소켓 1개가 남았다. Gateway Transport의 자체 TLSHandshakeTimeout은 설정되지 않았고, TCP dial의 요청 문맥 복원은 dial 함수 반환 뒤 Transport가 수행하는 TLS 단계까지 이어지지 않았다. MaxConnsPerHost=1 연결 자리도 다음 요청에 반환되지 않는 자원 점유였다.
+
+TCP와 TLS를 함께 소유하는 DialTLSContext를 추가했다. Transport 문맥을 부모로 유지하며 private context에 보존한 원래 요청의 기한·취소를 handshake까지 적용한다. 오류 때 TCP 소켓을 닫고, 성공 때 callback을 해제해 keep-alive를 유지한다. 기본 인증서 검증과 대상 호스트 이름 확인을 유지하고 TLS 설정은 연결별로 복제한다.
+
+실제 ClientHello 정체 검사는 요청 기한과 명시적 클라이언트 취소 각각을 같은 upstream 주소에서 두 차례 반복한다. 활성 소켓 0, 새 handshake 시작, 실행·대기 슬롯 0과 보호 경로 HTTP 200을 확인한다. 클라이언트 취소는 10초 요청 기한보다 짧은 1초 회수 상한으로 검사하며 차단기가 closed·실패 0이어야 한다. 별도 실제 TLS 서버는 신뢰하지 않은 인증서를 502로 거부하고, 신뢰 루트가 있는 조건에서 두 요청을 TCP dial 한 번으로 처리하는지와 공유 ServerName 설정이 바뀌지 않는지 검증한다.
+
+Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. TLS 기한·취소·인증서 검증/재사용과 Transport 취소 보존 검사는 Linux race 10회, Windows 최소 Go 1.25.0에서 5회 통과했다.
+
+공개 커밋 4a510118b5f3f3584206eaef71de681aeddbb759를 Windows·Linux에서 각각 go install하고 v0.0.0-20261025011944-4a510118b5f3 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
