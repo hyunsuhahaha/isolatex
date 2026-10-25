@@ -504,3 +504,5 @@ TCP와 TLS를 함께 소유하는 DialTLSContext를 추가했다. Transport 문�
 실제 ClientHello 정체 검사는 요청 기한과 명시적 클라이언트 취소 각각을 같은 upstream 주소에서 두 차례 반복한다. 활성 소켓 0, 새 handshake 시작, 실행·대기 슬롯 0과 보호 경로 HTTP 200을 확인한다. 클라이언트 취소는 10초 요청 기한보다 짧은 1초 회수 상한으로 검사하며 차단기가 closed·실패 0이어야 한다. 별도 실제 TLS 서버는 신뢰하지 않은 인증서를 502로 거부하고, 신뢰 루트가 있는 조건에서 두 요청을 TCP dial 한 번으로 처리하는지와 공유 ServerName 설정이 바뀌지 않는지 검증한다.
 
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. TLS 기한·취소·인증서 검증/재사용과 Transport 취소 보존 검사는 Linux race 10회, Windows 최소 Go 1.25.0에서 5회 통과했다.
+
+공개 커밋 4a510118b5f3f3584206eaef71de681aeddbb759를 Windows·Linux에서 각각 go install하고 v0.0.0-20261025011944-4a510118b5f3 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
