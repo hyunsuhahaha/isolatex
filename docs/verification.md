@@ -486,3 +486,9 @@ ReverseProxy의 스트리밍 panic 복구가 downstream 쓰기 실패나 취소�
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 200/503 TCP reset 대조는 Windows와 Linux race에서 각각 20회 통과했다. 신규 조건과 기존 본문 시간 초과·형식 오류 회귀는 Windows 최소 Go 1.25.0에서 2회 통과했다.
 
 공개 커밋 12046ccc346be112c4d2cd0418be1c44969b7c37를 Windows·Linux에서 각각 go install하고 v0.0.0-20261025001421-12046ccc346b 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
+
+최초 PR의 Windows stable CI에서는 기존 early_success 업로드 검사가 실패했다. 응답 복사가 context deadline을 먼저 관측하고 본문 읽기 goroutine의 timeout 보고가 늦으면, 원자 플래그가 아직 false인 채 차단기 완료가 실행됐다. 실제 TCP 본문 reader에서 socket timeout 반환만 100ms 늦춰 같은 실패(open / Requests=2 / Failures=1)를 로컬에서 재현했다.
+
+전체 요청 timeout 때 미완료 본문 reader의 최종 오류 통지를 최대 250ms 기다린 뒤 귀속한다. 통지는 timeout 플래그를 게시한 뒤 닫는 채널로 전달하고, 고정 길이 본문이 모두 읽혔거나 backend 5xx가 확인됐으면 기다리지 않는다. 지연된 오류 보고를 포함하는 early_success 회귀는 원래 요청·차단기 조건을 유지한다. 본문 읽기 완료를 무기한 기다리지 않는다.
+
+지연된 본문 오류 회귀를 포함한 최종 구현도 Windows 전체 테스트·vet와 실제 HAProxy를 포함한 Linux 전체 race·vet를 통과했다. 최종 reset/본문 시간 초과 검사는 Linux race에서 5회, 신규 조건과 형식 오류 검사는 Windows 최소 Go 1.25.0에서 2회 통과했다.
