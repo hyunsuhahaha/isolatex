@@ -492,3 +492,5 @@ Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.
 전체 요청 timeout 때 미완료 본문 reader의 최종 오류 통지를 최대 250ms 기다린 뒤 귀속한다. 통지는 timeout 플래그를 게시한 뒤 닫는 채널로 전달하고, 고정 길이 본문이 모두 읽혔거나 backend 5xx가 확인됐으면 기다리지 않는다. 지연된 오류 보고를 포함하는 early_success 회귀는 원래 요청·차단기 조건을 유지한다. 본문 읽기 완료를 무기한 기다리지 않는다.
 
 지연된 본문 오류 회귀를 포함한 최종 구현도 Windows 전체 테스트·vet와 실제 HAProxy를 포함한 Linux 전체 race·vet를 통과했다. 최종 reset/본문 시간 초과 검사는 Linux race에서 5회, 신규 조건과 형식 오류 검사는 Windows 최소 Go 1.25.0에서 2회 통과했다.
+
+최종 생산 커밋 982d8753356e93637c6af77f22bb00e37106fe3a도 Windows·Linux 공개 go install로 설치하고 v0.0.0-20261025002025-982d8753356e 버전·기본 설정 -check 성공을 확인했다. README 고정값은 이 최종 스냅샷을 가리킨다.
