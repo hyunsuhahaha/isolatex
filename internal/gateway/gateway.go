@@ -19,6 +19,7 @@ import (
 	"github.com/hyunsuhahaha/isolatex/internal/breaker"
 	"github.com/hyunsuhahaha/isolatex/internal/config"
 	"github.com/hyunsuhahaha/isolatex/internal/pool"
+	"github.com/hyunsuhahaha/isolatex/internal/requestdial"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -197,7 +198,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	expired := func() bool { return !time.Now().Before(deadline) || errors.Is(ctx.Err(), context.DeadlineExceeded) }
 	_ = rc.SetReadDeadline(deadline)
 	_ = rc.SetWriteDeadline(deadline)
-	r = r.WithContext(context.WithValue(ctx, dialRequestContextKey{}, ctx))
+	r = r.WithContext(requestdial.Bind(ctx, ctx))
 	body := &requestBody{ReadCloser: http.MaxBytesReader(w, r.Body, g.cfg.MaxBodyBytes), readDone: make(chan struct{})}
 	r.Body = body
 	tracked := &trackingWriter{ResponseWriter: w}

@@ -84,3 +84,11 @@ HTTPS upstream의 연결 수립은 TCP 연결부터 TLS handshake 완료까지 �
 전체 요청 기한 초과는 기존 504와 upstream 실패 정책, 클라이언트 취소는 차단기 표본 제외 정책을 유지한다. 다른 그룹은 별도 연결 풀과 요청 예산을 사용한다. 이 정책은 전체 outbound FD 예약을 추가하는 기능이 아니며 DNS resolver의 내부 OS 작업까지 즉시 회수한다는 보장은 아니다.
 
 TLS 인증서·호스트 이름 검증은 기본 TLS 정책대로 수행한다. handshake가 성공하면 취소 연결을 해제해 정상 keep-alive 재사용을 유지한다. Gateway 내부에서 TLS 설정을 사용하면 연결별 복제본에 대상 호스트 이름을 넣어 공유 설정을 바꾸지 않는다. 운영자는 504와 upstream TLS 연결 실패를 함께 확인하고 인증서 신뢰·만료·이름 불일치와 서버 handshake 정체를 구분해야 한다.
+
+## 준비 상태 점검의 연결 수명
+
+관리형 워커 점검과 외부 upstream의 정기 점검도 TCP/TLS 연결 수립에 해당 점검의 기한·취소를 적용한다. `readiness.timeout`은 HTTP Client가 적용한 최종 기한을 Transport 진입 시 보존해 DNS/TCP 연결 시도와 TLS handshake에 전달한다. 워커 시작 중에는 `startup_timeout`의 남은 기한도 함께 적용하고 Supervisor 종료 시 진행 중 연결 수립을 취소한다.
+
+점검은 연결을 재사용하지 않는 기존 정책과 64KiB 응답 헤더 상한을 유지한다. TLS 서버가 ClientHello 뒤 멈췄을 때 실패할 때마다 새 미완료 소켓이 누적되지 않도록 한다. 점검 오류는 기존 준비 상태 연속 실패·성공 임계값과 `isolatex_health_check_failures_total`에 반영하며, 이 변경으로 앱을 임의로 재시작하지 않는다. Gateway와 점검은 동일한 내부 dial 구현을 사용하지만 Transport·연결 풀·요청 예산은 각각 유지한다.
+
+전역 outbound FD 예약이나 OS DNS 내부 작업의 즉시 회수를 보장하는 기능은 아니다. 운영 시 준비 상태 실패 증가와 runtime FD·연결 수를 함께 확인하고, TLS 응답 정체와 인증서 검증 실패를 구분한다. 인증서·호스트 이름 검증은 기본 TLS 정책을 유지한다.

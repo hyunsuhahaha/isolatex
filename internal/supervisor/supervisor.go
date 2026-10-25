@@ -218,7 +218,7 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 }
 
 func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, control *processControl, done <-chan error, p *pool.Pool, index int, r config.Readiness) error {
-	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, MaxResponseHeaderBytes: maxReadinessHeaderBytes}
+	tr := newReadinessTransport()
 	defer tr.CloseIdleConnections()
 	client := &http.Client{Transport: tr, Timeout: r.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	startupCtx, cancelStartup := context.WithTimeout(ctx, r.StartupTimeout)
@@ -277,7 +277,7 @@ func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, control *processC
 func (s *Supervisor) monitorStatic(ctx context.Context, name string, index int, r config.Readiness) {
 	p := s.Pools[name]
 	p.Set(index, false, 0, "checking")
-	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, MaxResponseHeaderBytes: maxReadinessHeaderBytes}
+	tr := newReadinessTransport()
 	defer tr.CloseIdleConnections()
 	client := &http.Client{Transport: tr, Timeout: r.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	defer p.Set(index, false, 0, "stopped")
