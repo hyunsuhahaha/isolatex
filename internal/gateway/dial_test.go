@@ -13,6 +13,7 @@ import (
 
 	"github.com/hyunsuhahaha/isolatex/internal/config"
 	"github.com/hyunsuhahaha/isolatex/internal/pool"
+	"github.com/hyunsuhahaha/isolatex/internal/requestdial"
 )
 
 func TestRequestDeadlineReclaimsPendingUpstreamDials(t *testing.T) {
@@ -55,7 +56,7 @@ func TestRequestDeadlineReclaimsPendingUpstreamDials(t *testing.T) {
 func TestDialPreservesTransportCancellation(t *testing.T) {
 	requestCtx, cancelRequest := context.WithCancel(context.Background())
 	defer cancelRequest()
-	ctx, cancelTransport := context.WithCancel(context.WithValue(context.Background(), dialRequestContextKey{}, requestCtx))
+	ctx, cancelTransport := context.WithCancel(requestdial.Bind(context.Background(), requestCtx))
 	defer cancelTransport()
 	started := make(chan struct{})
 	dialer := &requestDialer{dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
