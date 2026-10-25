@@ -92,3 +92,13 @@ TLS 인증서·호스트 이름 검증은 기본 TLS 정책대로 수행한다. 
 점검은 연결을 재사용하지 않는 기존 정책과 64KiB 응답 헤더 상한을 유지한다. TLS 서버가 ClientHello 뒤 멈췄을 때 실패할 때마다 새 미완료 소켓이 누적되지 않도록 한다. 점검 오류는 기존 준비 상태 연속 실패·성공 임계값과 `isolatex_health_check_failures_total`에 반영하며, 이 변경으로 앱을 임의로 재시작하지 않는다. Gateway와 점검은 동일한 내부 dial 구현을 사용하지만 Transport·연결 풀·요청 예산은 각각 유지한다.
 
 전역 outbound FD 예약이나 OS DNS 내부 작업의 즉시 회수를 보장하는 기능은 아니다. 운영 시 준비 상태 실패 증가와 runtime FD·연결 수를 함께 확인하고, TLS 응답 정체와 인증서 검증 실패를 구분한다. 인증서·호스트 이름 검증은 기본 TLS 정책을 유지한다.
+
+## HTTPS upstream 등록
+
+정적 `upstreams`에 `https://upstream.example.com:443`처럼 HTTPS origin을 지정할 수 있다. 같은 런타임·그룹에서 HTTP와 HTTPS origin을 함께 등록할 수 있다. 기존과 같이 호스트와 명시적 포트 1–65535가 필요하며 URL 안의 자격 증명·경로·쿼리·fragment는 허용하지 않는다. [혼합 설정 예시](../examples/static-https.yaml)의 example 호스트를 실제 서버로 바꿔 사용한다.
+
+Gateway 요청과 정적 readiness 점검 모두 TLS 서버 인증서·호스트 이름을 검증한다. 신뢰 루트는 런타임의 기본 OS/Go 인증서 저장소를 사용하며 자체 서명 또는 사설 CA 서버는 운영 환경에서 해당 CA를 신뢰하도록 구성해야 한다. YAML에 인증서 검증을 끄는 옵션은 제공하지 않는다. 인증서 검증 실패는 Gateway에서 502, readiness에서 실패 점검으로 처리한다. TLS 서버 응답 정체는 앞서 설명한 요청·점검 기한과 취소에 따라 회수한다.
+
+`-check`는 HTTPS origin의 구문과 설정 예산을 검사하며 DNS·서버 연결·인증서 신뢰를 실제로 검사하지 않는다. 예시에는 임의 API가 제공하지 않을 수 있는 readiness 경로를 넣지 않았다. 실제 상태 점검 URL을 알고 있을 때 readiness를 설정한다. 생략하면 해당 정적 upstream이 준비됐다고 가정하는 기존 정책을 따른다.
+
+이 기능은 upstream으로 향하는 연결의 TLS 지원이다. 공용·관리 리스너가 HTTPS를 직접 수신하는 기능은 추가하지 않으며 클라이언트 측 TLS 종단은 계속 외부 프록시에서 구성한다.

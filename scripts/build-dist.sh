@@ -41,7 +41,7 @@ for target in ${TARGETS:-linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darw
   GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -o "$package/bin/demo-app$suffix" ./examples/demo-app
   cp README.md LICENSE CONTRIBUTING.md SECURITY.md isolatex.yaml "$package/"
   cp docs/*.md "$package/docs/"
-  cp examples/static.yaml "$package/examples/"
+  cp examples/static.yaml examples/static-https.yaml "$package/examples/"
   cp -R examples/observability "$package/examples/"
   cp -R examples/memory "$package/examples/"
   archive="$name.tar.gz"

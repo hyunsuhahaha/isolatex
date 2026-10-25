@@ -1,0 +1,21 @@
+# Replace upstream.example.com with a server trusted by the runtime OS.
+version: 1
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:9090"
+bulkheads:
+  alpha:
+    match:
+      path_prefix: /a
+    upstreams: ["http://127.0.0.1:9100"]
+    max_concurrent: 8
+    queue_size: 8
+    queue_timeout: 200ms
+    request_timeout: 2s
+  beta:
+    match:
+      path_prefix: /b
+    upstreams: ["https://upstream.example.com:443"]
+    max_concurrent: 2
+    queue_size: 4
+    queue_timeout: 200ms
+    request_timeout: 5s
