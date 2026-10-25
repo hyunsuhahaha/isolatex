@@ -12,6 +12,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -194,7 +195,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = rc.SetReadDeadline(deadline)
 	_ = rc.SetWriteDeadline(deadline)
 	r = r.WithContext(context.WithValue(ctx, dialRequestContextKey{}, ctx))
-	body := &requestBody{ReadCloser: http.MaxBytesReader(w, r.Body, g.cfg.MaxBodyBytes)}
+	body := &requestBody{ReadCloser: http.MaxBytesReader(w, r.Body, g.cfg.MaxBodyBytes), readDone: make(chan struct{})}
 	r.Body = body
 	tracked := &trackingWriter{ResponseWriter: w}
 	backendFailed := false
@@ -267,9 +268,23 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// The request budget also covers receiving the client's body. A
 		// confirmed downstream read timeout is not an upstream outage. Keep
 		// a 5xx that the backend actually returned as failure evidence.
-		if outcome == "timeout" && body.timedOut.Load() && !backendFailed {
-			outcome = "request_body_timeout"
-			result = breaker.Ignored
+		if outcome == "timeout" && !backendFailed {
+			// Response copying can reach the deadline before Transport's
+			// concurrent body reader publishes its socket timeout. Join that
+			// terminal read within the existing error-response grace, without
+			// waiting on completed fixed-length bodies or unbounded readers.
+			if r.ContentLength < 0 || body.received.Load() < r.ContentLength {
+				timer := time.NewTimer(250 * time.Millisecond)
+				select {
+				case <-body.readDone:
+				case <-timer.C:
+				}
+				timer.Stop()
+			}
+			if body.timedOut.Load() {
+				outcome = "request_body_timeout"
+				result = breaker.Ignored
+			}
 		}
 	}()
 	defer func() {
@@ -285,6 +300,12 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			if tracked.writeFailed {
 				result = breaker.Ignored
+			}
+			// Client cancellation or a failed downstream write cannot erase
+			// a 5xx already observed in ModifyResponse. Match the final-flush
+			// policy while retaining the delivery error as the metric outcome.
+			if backendFailed {
+				result = breaker.Failure
 			}
 			panic(v)
 		}
@@ -317,6 +338,9 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type requestBody struct {
 	io.ReadCloser
 	timedOut atomic.Bool
+	received atomic.Int64
+	readDone chan struct{}
+	readOnce sync.Once
 }
 
 type requestBodyError struct{ err error }
@@ -326,6 +350,7 @@ func (e *requestBodyError) Unwrap() error { return e.err }
 
 func (b *requestBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
+	b.received.Add(int64(n))
 	if err != nil && err != io.EOF {
 		var timeout net.Error
 		if errors.As(err, &timeout) && timeout.Timeout() {
@@ -336,6 +361,9 @@ func (b *requestBody) Read(p []byte) (int, error) {
 		if !errors.Is(err, http.ErrBodyReadAfterClose) {
 			err = &requestBodyError{err: err}
 		}
+	}
+	if err != nil {
+		b.readOnce.Do(func() { close(b.readDone) })
 	}
 	return n, err
 }

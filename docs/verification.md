@@ -474,3 +474,23 @@ Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.
 Windows Go 1.27.3 전체 테스트·vet, Linux Go 1.27.3 전체 race·vet(실제 HAProxy 포함)가 통과했다. 신규 네 조건은 Windows에서 5회, Linux race에서 5회 통과했다. 기존 네 가지 본문 시간 초과/5xx 귀속 조건과 신규 네 조건은 Windows 최소 Go 1.25.0에서 2회 통과했다.
 
 공개 커밋 082617ac63e619d5a1a35c4f53ec2def081939e2를 Windows·Linux에서 각각 go install하고 v0.0.0-20261024231310-082617ac63e6 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
+
+## 스트리밍 중 클라이언트 단절 뒤 5xx 보존 (2026-10-25)
+
+실제 HTTP upstream이 Content-Length 8MiB 응답을 전송하고 raw TCP 클라이언트는 응답 헤더만 읽은 뒤 SO_LINGER=0으로 연결을 reset했다. 작은 gateway 소켓 쓰기 버퍼로 전체 본문이 미리 전송되지 않도록 했다. 수정 전 확인된 503도 차단기 closed / Requests=1 / Failures=0으로 남았다. warmup 성공 하나 외에는 표본이 사라졌으며 실제 upstream 장애를 클라이언트 단절이 지우는 문제였다.
+
+ReverseProxy의 스트리밍 panic 복구가 downstream 쓰기 실패나 취소를 Ignored로 분류한 뒤, ModifyResponse에서 이미 확인한 backend 5xx 증거가 있으면 차단기 결과를 Failure로 보존한다. 마지막 flush 경로와 정책을 일치시키며 전송 오류 outcome은 유지한다.
+
+같은 TCP reset을 200과 503 각각에 적용한다. 200 뒤 단절은 closed / Requests=1 / Failures=0, 503 뒤 단절은 open / Requests=2 / Failures=1이어야 한다. 두 조건 모두 실제 클라이언트가 원래 상태 코드를 확인하며, 연결 종료·슬롯 회수·전송 오류 outcome과 보호 그룹 HTTP 200을 검증한다.
+
+Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 200/503 TCP reset 대조는 Windows와 Linux race에서 각각 20회 통과했다. 신규 조건과 기존 본문 시간 초과·형식 오류 회귀는 Windows 최소 Go 1.25.0에서 2회 통과했다.
+
+공개 커밋 12046ccc346be112c4d2cd0418be1c44969b7c37를 Windows·Linux에서 각각 go install하고 v0.0.0-20261025001421-12046ccc346b 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
+
+최초 PR의 Windows stable CI에서는 기존 early_success 업로드 검사가 실패했다. 응답 복사가 context deadline을 먼저 관측하고 본문 읽기 goroutine의 timeout 보고가 늦으면, 원자 플래그가 아직 false인 채 차단기 완료가 실행됐다. 실제 TCP 본문 reader에서 socket timeout 반환만 100ms 늦춰 같은 실패(open / Requests=2 / Failures=1)를 로컬에서 재현했다.
+
+전체 요청 timeout 때 미완료 본문 reader의 최종 오류 통지를 최대 250ms 기다린 뒤 귀속한다. 통지는 timeout 플래그를 게시한 뒤 닫는 채널로 전달하고, 고정 길이 본문이 모두 읽혔거나 backend 5xx가 확인됐으면 기다리지 않는다. 지연된 오류 보고를 포함하는 early_success 회귀는 원래 요청·차단기 조건을 유지한다. 본문 읽기 완료를 무기한 기다리지 않는다.
+
+지연된 본문 오류 회귀를 포함한 최종 구현도 Windows 전체 테스트·vet와 실제 HAProxy를 포함한 Linux 전체 race·vet를 통과했다. 최종 reset/본문 시간 초과 검사는 Linux race에서 5회, 신규 조건과 형식 오류 검사는 Windows 최소 Go 1.25.0에서 2회 통과했다.
+
+최종 생산 커밋 982d8753356e93637c6af77f22bb00e37106fe3a도 Windows·Linux 공개 go install로 설치하고 v0.0.0-20261025002025-982d8753356e 버전·기본 설정 -check 성공을 확인했다. README 고정값은 이 최종 스냅샷을 가리킨다.

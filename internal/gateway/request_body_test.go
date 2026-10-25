@@ -115,6 +115,15 @@ func checkRequestBodyCircuit(t *testing.T, mode string) {
 		b.CircuitBreaker = &config.CircuitBreaker{Window: time.Minute, MinRequests: 1, FailureRatio: .5, OpenTimeout: time.Minute}
 		c.Bulkheads["isolated"] = b
 	})
+	if mode == "early_success" {
+		// The response-copy goroutine can observe the request deadline before
+		// Transport's body-copy goroutine publishes the socket read timeout.
+		s = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = delayedBodyReadError{r.Body}
+			g.ServeHTTP(w, r)
+		}))
+		t.Cleanup(s.Close)
+	}
 	if got := code(t, s.Client(), s.URL+"/api/fault"); got != http.StatusOK {
 		t.Fatalf("warmup: %d", got)
 	}
@@ -180,6 +189,17 @@ func checkRequestBodyCircuit(t *testing.T, mode string) {
 			t.Fatalf("healthy request after stalled upload: path=%s status=%d", path, got)
 		}
 	}
+}
+
+type delayedBodyReadError struct{ io.ReadCloser }
+
+func (b delayedBodyReadError) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	var timeout net.Error
+	if errors.As(err, &timeout) && timeout.Timeout() {
+		time.Sleep(100 * time.Millisecond)
+	}
+	return n, err
 }
 
 // A backend closing its socket after a valid upload remains failure evidence.
