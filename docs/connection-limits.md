@@ -68,3 +68,9 @@ HTTP Transport는 연결 재사용을 위해 요청 취소와 별개로 연결 �
 chunked 크기·구분자·trailer 오류처럼 클라이언트 본문 reader가 반환한 오류가 Transport 오류로 전달되면 HTTP 400 / `request_body_error`로 응답하고 연결을 닫는다. 해당 결과는 차단기 성공·실패 표본에서 제외한다. 전송 계층이 upstream 장애 때문에 본문을 닫은 `http.ErrBodyReadAfterClose`는 클라이언트 오류 증거로 취급하지 않는다. upstream 연결 오류를 본문이 미완료라는 이유만으로 무시하지 않는다.
 
 본문 최대 크기 초과의 413, 요청 기한 초과의 504, 클라이언트 취소 정책은 우선 적용한다. 이미 upstream 응답을 전달하기 시작한 경우에는 새 400 응답으로 교체하지 않는다. `request_body_error` 증가는 요청 생성기와 앞단 프록시의 HTTP framing을 확인할 신호다. 이 지표는 upstream 장애율과 분리해 관측한다.
+
+## 응답 중단과 확인된 upstream 5xx
+
+Gateway가 upstream 5xx 헤더를 확인한 뒤 클라이언트가 응답 본문 수신을 중단해도 해당 요청은 차단기 실패 표본으로 남는다. ReverseProxy의 스트리밍 중단(panic 복구)과 마지막 buffered flush에 동일한 정책을 적용한다. 반대로 정상 upstream 응답의 downstream 쓰기 실패·클라이언트 취소는 계속 차단기 표본에서 제외한다.
+
+차단기 표본과 요청 outcome은 서로 다른 질문에 답한다. 확인된 upstream 503 뒤 클라이언트가 연결을 끊으면 차단기 실패는 증가하면서 요청 outcome은 `stream_error`, `canceled` 또는 `timeout`일 수 있다. outcome은 전송이 끝난 방식을 나타내므로 확인된 5xx가 항상 `upstream_5xx` outcome으로 기록되는 것은 아니다. `/status`의 그룹별 `circuit_breaker.failures`와 `isolatex_breaker_state`, 전송 오류 outcome을 함께 확인한다.

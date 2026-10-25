@@ -286,6 +286,12 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if tracked.writeFailed {
 				result = breaker.Ignored
 			}
+			// Client cancellation or a failed downstream write cannot erase
+			// a 5xx already observed in ModifyResponse. Match the final-flush
+			// policy while retaining the delivery error as the metric outcome.
+			if backendFailed {
+				result = breaker.Failure
+			}
 			panic(v)
 		}
 	}()
