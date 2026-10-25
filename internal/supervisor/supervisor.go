@@ -238,12 +238,12 @@ func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, control *processC
 			_ = stopChild(control, done)
 			return fmt.Errorf("readiness startup timeout")
 		case <-tick.C:
-			origin := p.Snapshot()[index].URL.String()
+			origin := p.Snapshot()[index].URL
 			probeCtx := ctx
 			if !ready {
 				probeCtx = startupCtx
 			}
-			req, _ := http.NewRequestWithContext(probeCtx, http.MethodGet, origin+r.Path, nil)
+			req := readinessRequest(probeCtx, origin, r.Path)
 			resp, err := client.Do(req)
 			ok := err == nil && resp.StatusCode == http.StatusOK
 			if resp != nil {
@@ -282,8 +282,8 @@ func (s *Supervisor) monitorStatic(ctx context.Context, name string, index int, 
 	client := &http.Client{Transport: tr, Timeout: r.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	defer p.Set(index, false, 0, "stopped")
 	for ctx.Err() == nil {
-		origin := p.Snapshot()[index].URL.String()
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, origin+r.Path, nil)
+		origin := p.Snapshot()[index].URL
+		req := readinessRequest(ctx, origin, r.Path)
 		resp, err := client.Do(req)
 		ok := err == nil && resp.StatusCode == 200
 		if resp != nil {

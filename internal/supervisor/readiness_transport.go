@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/hyunsuhahaha/isolatex/internal/requestdial"
@@ -24,4 +25,14 @@ func newReadinessTransport() readinessTransport {
 		return d.DialTLSContext(ctx, network, address, t.TLSClientConfig)
 	}
 	return readinessTransport{t}
+}
+
+// Config validates origins with an empty or root path. Replace that path,
+// rather than concatenate it, and leave the pool's shared URL unchanged.
+func readinessRequest(ctx context.Context, origin *url.URL, path string) *http.Request {
+	target := *origin
+	target.Path = path
+	target.RawPath = ""
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	return req
 }

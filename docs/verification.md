@@ -532,3 +532,13 @@ Gateway 회귀는 HTTPS origin이 들어간 YAML을 실제 Decode한 뒤 그 설
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. HTTPS 설정·실제 전달·준비 상태·TLS 수명 회귀는 Linux race와 Windows 최소 Go 1.25.0에서 각각 5회 통과했다. 새 혼합 예시의 CLI -check도 통과했다.
 
 공개 커밋 1dd3ac224d3ea4359a909de69d606e9bf8b7944a를 Windows·Linux에서 각각 go install하고 v0.0.0-20261025032159-1dd3ac224d3e 버전, 기본 설정과 새 examples/static-https.yaml의 -check 성공을 확인했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
+
+## 루트 슬래시 origin의 readiness 경로 (2026-10-25)
+
+설정 검사가 허용하는 `http://host:port/`와 readiness.path=/readyz를 조합하면 기존 문자열 덧셈이 //readyz를 요청했다. 실제 설정을 Decode해 origin 끝의 슬래시 유무만 다른 두 그룹을 감시했고, 수정 전 서버에 잘못된 경로 요청 7개가 도착해 회귀 검사가 실패했다. 정상 endpoint는 /readyz에서 200을 반환하지만 //readyz에서는 404를 반환했다. 정상 upstream을 미준비로 오판해 해당 그룹의 용량이 사라질 수 있는 경계다.
+
+공유 URL을 복제한 뒤 경로를 readiness.path로 교체해 HTTP 요청을 만든다. 관리형·정적 점검 모두 이 함수를 사용한다. Pool URL은 수정하지 않으며 지정된 점검 경로의 마지막 슬래시도 보존한다.
+
+HTTP 회귀는 실제 Decode 설정의 두 그룹에서 각 5회 이상 점검 뒤 Ready=true, HealthFailures=0과 잘못된 경로 요청 0을 확인한다. 별도 실제 HTTPS 서버는 `/readyz/`만 받아 두 origin 표기 모두 200/ready를 반환하는지 확인한다. fixture CA만 해당 점검 Transport에 신뢰시키고 시스템 저장소를 바꾸지 않는다. HTTPS 검사에서는 원래 URL이 변경되지 않았는지도 확인하며 리다이렉트는 허용하지 않는다.
+
+Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 신규 HTTP/HTTPS origin 회귀는 Windows Go 1.27.3, Windows 최소 Go 1.25.0, Linux race에서 각각 10회 통과했다.

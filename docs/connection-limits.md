@@ -102,3 +102,9 @@ Gateway 요청과 정적 readiness 점검 모두 TLS 서버 인증서·호스트
 `-check`는 HTTPS origin의 구문과 설정 예산을 검사하며 DNS·서버 연결·인증서 신뢰를 실제로 검사하지 않는다. 예시에는 임의 API가 제공하지 않을 수 있는 readiness 경로를 넣지 않았다. 실제 상태 점검 URL을 알고 있을 때 readiness를 설정한다. 생략하면 해당 정적 upstream이 준비됐다고 가정하는 기존 정책을 따른다.
 
 이 기능은 upstream으로 향하는 연결의 TLS 지원이다. 공용·관리 리스너가 HTTPS를 직접 수신하는 기능은 추가하지 않으며 클라이언트 측 TLS 종단은 계속 외부 프록시에서 구성한다.
+
+## 준비 상태 경로와 origin의 마지막 슬래시
+
+정적 upstream origin은 `http://host:port`와 `http://host:port/`를 모두 허용하며 HTTPS도 같다. readiness는 origin의 빈 경로 또는 루트 경로를 설정된 `readiness.path`로 교체한다. 따라서 두 표기 모두 `/readyz`를 점검하며 `//readyz`를 만들지 않는다. Pool에 저장된 upstream URL은 바꾸지 않는다.
+
+점검 경로 자체의 마지막 슬래시는 유지한다. `/readyz/`를 설정하면 그 경로를 요청한다. 서버가 다른 경로로 리다이렉트하더라도 따라가지 않는 기존 정책은 유지하므로 실제 서버의 점검 경로를 정확히 지정해야 한다. 관리형 워커 점검에도 같은 URL 생성 함수를 사용한다.
