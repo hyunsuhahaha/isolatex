@@ -542,3 +542,5 @@ Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.
 HTTP 회귀는 실제 Decode 설정의 두 그룹에서 각 5회 이상 점검 뒤 Ready=true, HealthFailures=0과 잘못된 경로 요청 0을 확인한다. 별도 실제 HTTPS 서버는 `/readyz/`만 받아 두 origin 표기 모두 200/ready를 반환하는지 확인한다. fixture CA만 해당 점검 Transport에 신뢰시키고 시스템 저장소를 바꾸지 않는다. HTTPS 검사에서는 원래 URL이 변경되지 않았는지도 확인하며 리다이렉트는 허용하지 않는다.
 
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 신규 HTTP/HTTPS origin 회귀는 Windows Go 1.27.3, Windows 최소 Go 1.25.0, Linux race에서 각각 10회 통과했다.
+
+공개 커밋 931d5fce6c0e58b93fd8df572f9145f9208b8f16을 Windows·Linux에서 각각 go install하고 v0.0.0-20261025041527-931d5fce6c0e 버전, 기본 설정과 HTTPS 혼합 예시의 -check 성공을 확인했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
