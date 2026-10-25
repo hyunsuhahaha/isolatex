@@ -73,4 +73,4 @@ chunked 크기·구분자·trailer 오류처럼 클라이언트 본문 reader가
 
 Gateway가 upstream 5xx 헤더를 확인한 뒤 클라이언트가 응답 본문 수신을 중단해도 해당 요청은 차단기 실패 표본으로 남는다. ReverseProxy의 스트리밍 중단(panic 복구)과 마지막 buffered flush에 동일한 정책을 적용한다. 반대로 정상 upstream 응답의 downstream 쓰기 실패·클라이언트 취소는 계속 차단기 표본에서 제외한다.
 
-차단기 표본과 요청 outcome은 서로 다른 질문에 답한다. 확인된 upstream 503 뒤 클라이언트가 연결을 끊으면 차단기 실패는 증가하면서 요청 outcome은 `stream_error`, `canceled` 또는 `timeout`일 수 있다. outcome은 전송이 끝난 방식을 나타내므로 확인된 5xx가 항상 `upstream_5xx` outcome으로 기록되는 것은 아니다. `/status`의 그룹별 `circuit_breaker.failures`와 `isolatex_breaker_state`, 전송 오류 outcome을 함께 확인한다.
+차단기 표본과 요청 outcome은 서로 다른 질문에 답한다. 확인된 upstream 503 뒤 클라이언트가 연결을 끊으면 차단기 실패는 증가하면서 요청 outcome은 `stream_error`, `canceled` 또는 `timeout`일 수 있다. outcome은 전송이 끝난 방식을 나타내므로 확인된 5xx가 항상 `upstream_5xx` outcome으로 기록되는 것은 아니다. `/status`의 그룹별 `circuit_breaker.window_failures`와 `isolatex_breaker_state`, 전송 오류 outcome을 함께 확인한다.

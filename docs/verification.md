@@ -484,3 +484,5 @@ ReverseProxy의 스트리밍 panic 복구가 downstream 쓰기 실패나 취소�
 같은 TCP reset을 200과 503 각각에 적용한다. 200 뒤 단절은 closed / Requests=1 / Failures=0, 503 뒤 단절은 open / Requests=2 / Failures=1이어야 한다. 두 조건 모두 실제 클라이언트가 원래 상태 코드를 확인하며, 연결 종료·슬롯 회수·전송 오류 outcome과 보호 그룹 HTTP 200을 검증한다.
 
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 200/503 TCP reset 대조는 Windows와 Linux race에서 각각 20회 통과했다. 신규 조건과 기존 본문 시간 초과·형식 오류 회귀는 Windows 최소 Go 1.25.0에서 2회 통과했다.
+
+공개 커밋 12046ccc346be112c4d2cd0418be1c44969b7c37를 Windows·Linux에서 각각 go install하고 v0.0.0-20261025001421-12046ccc346b 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 코드 스냅샷으로 갱신했다.
