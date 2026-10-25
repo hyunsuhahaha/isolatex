@@ -518,3 +518,15 @@ Gateway에서 검증한 요청 문맥 복원과 TLS dial을 internal/requestdial
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 신규 준비 상태 TLS 회귀는 Linux race 10회, Gateway TLS/Transport 취소 회귀와 함께 Windows 최소 Go 1.25.0에서 5회 통과했다.
 
 공개 커밋 e3d18adfb8dd699263ec939feb28471e628ee405를 Windows·Linux에서 각각 go install하고 v0.0.0-20261025022117-e3d18adfb8dd 버전과 기본 설정 -check 성공을 확인했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
+
+## 공개 설정에서 HTTPS upstream 사용 (2026-10-25)
+
+이전 TLS 수명 회귀는 내부 Transport와 직접 지정한 pool을 검증했지만 공개 config.Decode는 http scheme만 허용했다. https://example.com:443을 실제 Decode에 넣은 신규 검사가 기존 구현에서 upstream must be an http origin 오류로 실패했다. 이번 변경은 기존 TLS 수명 처리 위에 공개 설정 지원을 연결한다.
+
+origin 검사를 http 또는 https로 확장하고 명시적 포트·호스트·자격 증명 및 경로 제한은 유지한다. DNS 이름·IPv4·IPv6 HTTPS origin을 허용하는 대조와 포트 누락·빈 호스트·범위 초과·userinfo·경로·쿼리·fragment·다른 scheme 거부를 검사한다. 혼합 HTTP/HTTPS 예시를 추가하고 배포 묶음에도 포함한다.
+
+Gateway 회귀는 HTTPS origin이 들어간 YAML을 실제 Decode한 뒤 그 설정의 upstream으로 pool과 Gateway를 생성한다. 신뢰하지 않은 실제 TLS 서버는 502로 거부하고, 해당 fixture CA만 Transport의 RootCAs에 넣으면 암호화된 upstream의 고유 본문을 200으로 전달하는지 확인한다. 시스템 신뢰 저장소를 변경하거나 InsecureSkipVerify를 사용하지 않는다. 같은 설정의 다른 HTTP 그룹도 200으로 응답해야 한다.
+
+준비 상태 TLS 정체 회귀도 전체 Config.Validate를 통과한 실제 HTTP/HTTPS 혼합 설정에서 실행하도록 강화했다. 기존 TLS 기한·취소·인증서 거부·연결 재사용 회귀를 함께 실행한다. -check의 설정 검증과 실제 인증서 연결 검증은 별도 범위다.
+
+Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. HTTPS 설정·실제 전달·준비 상태·TLS 수명 회귀는 Linux race와 Windows 최소 Go 1.25.0에서 각각 5회 통과했다. 새 혼합 예시의 CLI -check도 통과했다.

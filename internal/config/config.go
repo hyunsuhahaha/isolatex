@@ -257,8 +257,8 @@ func (c Config) Validate() error {
 		}
 		for _, raw := range g.Upstreams {
 			u, err := url.Parse(raw)
-			if err != nil || u.Scheme != "http" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-				return fmt.Errorf("%s: upstream must be an http origin without credentials, path or query", name)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+				return fmt.Errorf("%s: upstream must be an http or https origin without credentials, path or query", name)
 			}
 			host, port, err := net.SplitHostPort(u.Host)
 			n, portErr := strconv.Atoi(port)

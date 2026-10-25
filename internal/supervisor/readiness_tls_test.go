@@ -19,9 +19,14 @@ func TestStaticReadinessReclaimsStalledTLS(t *testing.T) {
 	address, active, _ := stalledTLSServer(t)
 	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) }))
 	defer good.Close()
-	c := config.Config{Bulkheads: map[string]config.Group{}}
+	c := config.Config{Version: 1, Listen: "127.0.0.1:8080", AdminListen: "127.0.0.1:9090", MaxAdmitted: 4, MaxConnections: 8, MaxBodyBytes: 1024, ShutdownGrace: time.Second, Bulkheads: map[string]config.Group{}}
 	for name, origin := range map[string]string{"normal": good.URL, "isolated": "https://" + address} {
-		c.Bulkheads[name] = config.Group{Upstreams: []string{origin}, Readiness: config.Readiness{Path: "/readyz", Interval: 20 * time.Millisecond, Timeout: 100 * time.Millisecond}}
+		b := config.Group{MaxConcurrent: 1, QueueSize: 1, QueueTimeout: time.Second, RequestTimeout: time.Second, Upstreams: []string{origin}, Readiness: config.Readiness{Path: "/readyz", Interval: 20 * time.Millisecond, Timeout: 100 * time.Millisecond}}
+		b.Match.PathPrefix = "/" + name
+		c.Bulkheads[name] = b
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
 	}
 	s := New(c, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err := s.Start(context.Background()); err != nil {
