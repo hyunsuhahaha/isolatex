@@ -530,3 +530,5 @@ Gateway 회귀는 HTTPS origin이 들어간 YAML을 실제 Decode한 뒤 그 설
 준비 상태 TLS 정체 회귀도 전체 Config.Validate를 통과한 실제 HTTP/HTTPS 혼합 설정에서 실행하도록 강화했다. 기존 TLS 기한·취소·인증서 거부·연결 재사용 회귀를 함께 실행한다. -check의 설정 검증과 실제 인증서 연결 검증은 별도 범위다.
 
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. HTTPS 설정·실제 전달·준비 상태·TLS 수명 회귀는 Linux race와 Windows 최소 Go 1.25.0에서 각각 5회 통과했다. 새 혼합 예시의 CLI -check도 통과했다.
+
+공개 커밋 1dd3ac224d3ea4359a909de69d606e9bf8b7944a를 Windows·Linux에서 각각 go install하고 v0.0.0-20261025032159-1dd3ac224d3e 버전, 기본 설정과 새 examples/static-https.yaml의 -check 성공을 확인했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
