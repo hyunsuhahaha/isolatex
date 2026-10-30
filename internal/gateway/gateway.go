@@ -207,7 +207,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result = breaker.Success
 	proxy := httputil.ReverseProxy{
 		Rewrite:   func(pr *httputil.ProxyRequest) { pr.SetURL(target); pr.SetXForwarded() },
-		Transport: b.transport,
+		Transport: informationalTransport{base: b.transport},
 		ModifyResponse: func(resp *http.Response) error {
 			// A backend can finish concurrently with cancellation. Do not turn a
 			// deadline (or a server read deadline canceling the parent) into 200.
@@ -252,6 +252,10 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(req.Context().Err(), context.Canceled):
 				result = breaker.Ignored
 				outcome = "canceled"
+			case errors.Is(err, errInformationalLimit):
+				result = breaker.Failure
+				outcome = "upstream_informational_limit"
+				fail(w, http.StatusBadGateway, outcome)
 			case errors.As(err, &bodyError):
 				// Only the error propagated from reading the incoming body is
 				// client evidence; an unrelated backend reset is still a failure.
@@ -295,7 +299,8 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if v := recover(); v != nil {
 			result = breaker.Failure
 			outcome = "stream_error"
-			if ctx.Err() != nil {
+			// Socket deadlines can win before the context timer publishes Err.
+			if expired() || ctx.Err() != nil {
 				outcome = "timeout"
 				if !expired() && errors.Is(ctx.Err(), context.Canceled) {
 					result = breaker.Ignored

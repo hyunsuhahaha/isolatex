@@ -108,3 +108,11 @@ Gateway 요청과 정적 readiness 점검 모두 TLS 서버 인증서·호스트
 정적 upstream origin은 `http://host:port`와 `http://host:port/`를 모두 허용하며 HTTPS도 같다. readiness는 origin의 빈 경로 또는 루트 경로를 설정된 `readiness.path`로 교체한다. 따라서 두 표기 모두 `/readyz`를 점검하며 `//readyz`를 만들지 않는다. Pool에 저장된 upstream URL은 바꾸지 않는다.
 
 점검 경로 자체의 마지막 슬래시는 유지한다. `/readyz/`를 설정하면 그 경로를 요청한다. 서버가 다른 경로로 리다이렉트하더라도 따라가지 않는 기존 정책은 유지하므로 실제 서버의 점검 경로를 정확히 지정해야 한다. 관리형 워커 점검에도 같은 URL 생성 함수를 사용한다.
+
+## Upstream 정보성 응답(1xx) 한도
+
+Gateway는 upstream의 최종 응답 전 정보성 응답(예: 100 Continue, 103 Early Hints)을 요청당 최대 8개 전달한다. 전달할 정보성 응답의 누적 헤더 예산은 64KiB다. 계산은 응답마다 상태 줄·빈 줄 용도로 32바이트를 차감하고, 파싱된 각 헤더 값마다 이름·값 바이트 수와 구분자 4바이트를 차감한다. 원본 wire 바이트 수와 같은 계측은 아니다. 개별 응답의 기존 64KiB Transport 헤더 한도와 최종 응답 헤더 한도도 유지한다.
+
+정보성 응답을 사용자에게 전달하는 Go Transport 경로는 각 1xx 뒤에 헤더 한도를 다시 시작한다. 따라서 개별 헤더 크기 제한만으로 응답 개수와 누적 처리를 제한할 수 없다. IsolateX는 초과한 정보성 응답을 클라이언트로 전달하기 전에 upstream 요청을 중단하고 최종 HTTP 502 / `upstream_informational_limit`을 반환한다. 이 요청은 차단기 실패로 집계하고 실행 슬롯과 워커 선택을 반환한다. 이미 전달한 정상 1xx 응답은 취소되지 않는다. 요청 기한 초과·클라이언트 취소가 함께 발생하면 기존 오류 우선순위를 따른다.
+
+운영 시 `isolatex_requests_total{outcome="upstream_informational_limit"}` 증가를 확인하고 upstream의 Early Hints·정보성 응답 반복과 헤더 크기를 조사한다. 제한 안의 정보성 응답은 기존처럼 전달하며 최종 응답 결과로 차단기에 반영한다. 이 한도는 요청 전체 기한이나 응답 본문 스트리밍 기한을 대체하지 않는다.

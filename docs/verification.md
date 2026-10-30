@@ -544,3 +544,25 @@ HTTP 회귀는 실제 Decode 설정의 두 그룹에서 각 5회 이상 점검 �
 Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.27.3 전체 race·vet가 통과했다. 신규 HTTP/HTTPS origin 회귀는 Windows Go 1.27.3, Windows 최소 Go 1.25.0, Linux race에서 각각 10회 통과했다.
 
 공개 커밋 931d5fce6c0e58b93fd8df572f9145f9208b8f16을 Windows·Linux에서 각각 go install하고 v0.0.0-20261025041527-931d5fce6c0e 버전, 기본 설정과 HTTPS 혼합 예시의 -check 성공을 확인했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
+
+## 정보성 응답 반복의 헤더 예산 (2026-10-30)
+
+실제 HTTP upstream에서 103 응답 16개를 보낸 뒤 최종 200을 반환했다. 기존 Gateway는 모두 전달하고 성공으로 처리했다. 별도 조건은 24KiB 헤더가 있는 103을 4개 보내 64KiB를 넘는 누적 헤더를 전달했다. 각 응답은 기존 개별 Transport 헤더 상한보다 작으므로 둘 다 final=200으로 회귀 검사가 실패했다. ReverseProxy가 1xx 전달 hook을 설치하면 Transport가 개별 1xx마다 헤더 한도를 다시 설정하는 경계다.
+
+요청당 정보성 응답 8개·누적 파싱 헤더 예산 64KiB를 적용한다. ReverseProxy가 만든 요청별 trace의 hook을 Transport I/O 시작 전에 감싸 초과 응답을 전달하기 전에 오류를 반환한다. httptrace.WithClientTrace의 hook 합성은 기존 hook이 있을 때 새 hook의 반환 오류를 보존하지 않으므로 단순 합성을 사용하지 않는다. 호출자 hook 자체는 변경하지 않고 허용된 응답에서 한 번씩 호출한다.
+
+실제 upstream HTTP와 클라이언트 raw TCP로 정상 3개·경계 8개·개수 초과 16개·24KiB 헤더 4개를 비교한다. 정상/경계는 정보성 응답 전부와 최종 200, 개수 초과는 8개 전달 후 502, 헤더 누적 초과는 2개 전달 후 502여야 한다. 기존 호출자 trace가 있어도 한도가 유지되고 hook 호출 수가 실제 전달 수와 일치해야 한다. 실패 조건의 새 outcome 지표·차단기 open/실패 1, 성공 조건의 closed/실패 0, 실행·대기·워커 슬롯 반환과 보호 경로 200도 확인한다.
+
+Linux Go 1.27.3 전체 race·vet(실제 HAProxy 포함), Windows vet가 통과했다. 신규 정보성 응답 회귀는 Linux race와 Windows stable에서 각각 20회, Windows 최소 Go 1.25.0에서 10회 통과했다.
+
+Windows 전체 테스트는 기존 TestWorkerCPUBudgetContainsDescendantLoad의 cpu_only/combined에서 실패했다. 변경 없는 master 01b7305를 별도 checkout에서 같은 검사로 실행해 두 조건의 실패를 다시 확인했다. 이 호스트는 Job flags=5/rate=100을 보고하지만 1.52초 구간에 합산 CPU 시간이 약 11.9초 증가하고 부모·자손의 계산 작업도 진행했다. 정보성 응답 변경과 별개로 이 호스트에서 CPU hard cap 집행을 확인하지 못했다. 원인은 아직 확정하지 않았으며 해당 검사를 skip하거나 합격선을 완화하지 않았다. Windows 전체 테스트 통과로 보고하지 않는다.
+
+공개 커밋 88392a521a47ca7c06a63410e08438fb6d0db95f를 Windows·Linux에서 각각 go install하고 v0.0.0-20261030142114-88392a521a47 버전과 기본 설정 -check 성공을 확인했다. Linux는 HTTPS 혼합 예시 -check도 통과했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
+
+최초 PR #33의 Windows stable CI는 기존 early_success 본문 귀속 검사에서 실패했다. 소켓 기한이 지났지만 context.Err 통지가 아직 늦는 경계를 복구 경로가 timeout으로 분류하지 못하면, 앞서 추가한 본문 읽기 결과 합류도 실행하지 못했다. 기한이 지난 상태·Done 미통지·미완료 실제 TCP 업로드와 응답 복사 중단을 통제하는 회귀를 추가했고, 기존 구현에서 차단기 open / Requests=2 / Failures=1을 재현했다.
+
+panic 복구가 context.Err뿐 아니라 이미 지난 요청 기한도 확인하도록 수정했다. 이 경로도 기존의 최대 250ms 본문 오류 결과 합류를 거쳐 request_body_timeout / Ignored로 귀속한다. 확인된 upstream 5xx와 완료된 업로드 뒤 backend timeout의 실패 보존 정책은 유지한다. 새 회귀의 응답 writer는 기한까지 복사를 대기시킨 뒤 ErrAbortHandler를 발생시키며, 실제 소켓 본문 timeout의 보고는 100ms 늦춰 합류 경계를 검증한다.
+
+최종 구현의 Gateway 전체 테스트·vet는 Windows에서, 전체 race·vet(실제 HAProxy 포함)는 Linux에서 통과했다. 정보성 응답과 본문 귀속 5조건은 Linux race 3회, Windows 최소 Go 1.25.0에서 2회 통과했다. 기한 검사만 제거한 음성 대조는 새 delayed_notification 조건에서 open/Requests=2/Failures=1로 실패했고, 검사를 복원하면 통과했다. 기존 로컬 Windows CPU 제한 실패는 별도로 남아 있다.
+
+최종 생산 커밋 995f3db77f19e9b18673dac976c8a691608f7d94도 Windows·Linux 공개 go install로 설치하고 v0.0.0-20261030144213-995f3db77f19 버전과 기본 설정 -check 성공을 확인했다. Linux HTTPS 혼합 설정 -check도 통과했다. README 고정값은 이 최종 스냅샷을 가리킨다.
