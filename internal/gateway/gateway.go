@@ -299,7 +299,8 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if v := recover(); v != nil {
 			result = breaker.Failure
 			outcome = "stream_error"
-			if ctx.Err() != nil {
+			// Socket deadlines can win before the context timer publishes Err.
+			if expired() || ctx.Err() != nil {
 				outcome = "timeout"
 				if !expired() && errors.Is(ctx.Err(), context.Canceled) {
 					result = breaker.Ignored

@@ -558,3 +558,9 @@ Linux Go 1.27.3 전체 race·vet(실제 HAProxy 포함), Windows vet가 통과�
 Windows 전체 테스트는 기존 TestWorkerCPUBudgetContainsDescendantLoad의 cpu_only/combined에서 실패했다. 변경 없는 master 01b7305를 별도 checkout에서 같은 검사로 실행해 두 조건의 실패를 다시 확인했다. 이 호스트는 Job flags=5/rate=100을 보고하지만 1.52초 구간에 합산 CPU 시간이 약 11.9초 증가하고 부모·자손의 계산 작업도 진행했다. 정보성 응답 변경과 별개로 이 호스트에서 CPU hard cap 집행을 확인하지 못했다. 원인은 아직 확정하지 않았으며 해당 검사를 skip하거나 합격선을 완화하지 않았다. Windows 전체 테스트 통과로 보고하지 않는다.
 
 공개 커밋 88392a521a47ca7c06a63410e08438fb6d0db95f를 Windows·Linux에서 각각 go install하고 v0.0.0-20261030142114-88392a521a47 버전과 기본 설정 -check 성공을 확인했다. Linux는 HTTPS 혼합 예시 -check도 통과했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
+
+최초 PR #33의 Windows stable CI는 기존 early_success 본문 귀속 검사에서 실패했다. 소켓 기한이 지났지만 context.Err 통지가 아직 늦는 경계를 복구 경로가 timeout으로 분류하지 못하면, 앞서 추가한 본문 읽기 결과 합류도 실행하지 못했다. 기한이 지난 상태·Done 미통지·미완료 실제 TCP 업로드와 응답 복사 중단을 통제하는 회귀를 추가했고, 기존 구현에서 차단기 open / Requests=2 / Failures=1을 재현했다.
+
+panic 복구가 context.Err뿐 아니라 이미 지난 요청 기한도 확인하도록 수정했다. 이 경로도 기존의 최대 250ms 본문 오류 결과 합류를 거쳐 request_body_timeout / Ignored로 귀속한다. 확인된 upstream 5xx와 완료된 업로드 뒤 backend timeout의 실패 보존 정책은 유지한다. 새 회귀의 응답 writer는 기한까지 복사를 대기시킨 뒤 ErrAbortHandler를 발생시키며, 실제 소켓 본문 timeout의 보고는 100ms 늦춰 합류 경계를 검증한다.
+
+최종 구현의 Gateway 전체 테스트·vet는 Windows에서, 전체 race·vet(실제 HAProxy 포함)는 Linux에서 통과했다. 정보성 응답과 본문 귀속 5조건은 Linux race 3회, Windows 최소 Go 1.25.0에서 2회 통과했다. 기한 검사만 제거한 음성 대조는 새 delayed_notification 조건에서 open/Requests=2/Failures=1로 실패했고, 검사를 복원하면 통과했다. 기존 로컬 Windows CPU 제한 실패는 별도로 남아 있다.

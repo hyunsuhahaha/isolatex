@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestRequestBodyCircuitAttribution(t *testing.T) {
-	for _, mode := range []string{"stalled_client", "stalled_backend", "confirmed_5xx", "early_success"} {
+	for _, mode := range []string{"stalled_client", "stalled_backend", "confirmed_5xx", "early_success", "delayed_notification"} {
 		t.Run(mode, func(t *testing.T) { checkRequestBodyCircuit(t, mode) })
 	}
 }
@@ -88,13 +89,13 @@ func checkRequestBodyCircuit(t *testing.T, mode string) {
 	g, s := testGateway(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.ContentLength > 0 {
 			uploads.Add(1)
-			if mode == "confirmed_5xx" || mode == "early_success" {
+			if mode == "confirmed_5xx" || mode == "early_success" || mode == "delayed_notification" {
 				rc := http.NewResponseController(w)
 				if err := rc.EnableFullDuplex(); err != nil {
 					return
 				}
 				status := http.StatusServiceUnavailable
-				if mode == "early_success" {
+				if mode == "early_success" || mode == "delayed_notification" {
 					status = http.StatusOK
 				}
 				w.WriteHeader(status)
@@ -115,12 +116,22 @@ func checkRequestBodyCircuit(t *testing.T, mode string) {
 		b.CircuitBreaker = &config.CircuitBreaker{Window: time.Minute, MinRequests: 1, FailureRatio: .5, OpenTimeout: time.Minute}
 		c.Bulkheads["isolated"] = b
 	})
-	if mode == "early_success" {
+	if mode == "early_success" || mode == "delayed_notification" {
 		// The response-copy goroutine can observe the request deadline before
 		// Transport's body-copy goroutine publishes the socket read timeout.
 		s = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Deadline delivery and Done notification are asynchronous. Model
+			// the socket deadline winning while context notification is delayed.
+			if mode == "delayed_notification" {
+				r = r.WithContext(delayedDeadlineContext{Context: r.Context(), deadline: time.Now().Add(time.Second)})
+			}
 			r.Body = delayedBodyReadError{r.Body}
-			g.ServeHTTP(w, r)
+			var writer http.ResponseWriter = w
+			if mode == "delayed_notification" && r.Method == http.MethodPost {
+				deadline, _ := r.Context().Deadline()
+				writer = deadlineAbortWriter{ResponseWriter: w, deadline: deadline}
+			}
+			g.ServeHTTP(writer, r)
 		}))
 		t.Cleanup(s.Close)
 	}
@@ -143,14 +154,14 @@ func checkRequestBodyCircuit(t *testing.T, mode string) {
 		t.Fatal(err)
 	}
 	resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodPost})
-	streamed := mode == "confirmed_5xx" || mode == "early_success"
+	streamed := mode == "confirmed_5xx" || mode == "early_success" || mode == "delayed_notification"
 	if err != nil && !(streamed && (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF))) {
 		t.Fatal(err)
 	}
 	expectedStatus := http.StatusGatewayTimeout
 	if mode == "confirmed_5xx" {
 		expectedStatus = http.StatusServiceUnavailable
-	} else if mode == "early_success" {
+	} else if mode == "early_success" || mode == "delayed_notification" {
 		expectedStatus = http.StatusOK
 	}
 	if resp != nil {
@@ -166,7 +177,7 @@ func checkRequestBodyCircuit(t *testing.T, mode string) {
 	eventually(t, func() bool { a, q := g.groups[0].gate.snapshot(); return a == 0 && q == 0 })
 	snapshot := g.groups[0].breaker.Snapshot()
 	expectedState, expectedFailures, expectedRequests := "closed", uint64(0), uint64(1)
-	clientTimeout := mode == "stalled_client" || mode == "early_success"
+	clientTimeout := mode == "stalled_client" || mode == "early_success" || mode == "delayed_notification"
 	if !clientTimeout {
 		expectedState, expectedFailures, expectedRequests = "open", 1, 2
 	}
@@ -192,6 +203,30 @@ func checkRequestBodyCircuit(t *testing.T, mode string) {
 }
 
 type delayedBodyReadError struct{ io.ReadCloser }
+
+// Hold response copying at the expired-deadline/pending-Done boundary, then
+// abort it just as ReverseProxy aborts after a failed upstream body read.
+type deadlineAbortWriter struct {
+	http.ResponseWriter
+	deadline time.Time
+}
+
+func (w deadlineAbortWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w deadlineAbortWriter) Write([]byte) (int, error) {
+	timer := time.NewTimer(max(0, time.Until(w.deadline)))
+	defer timer.Stop()
+	<-timer.C
+	panic(http.ErrAbortHandler)
+}
+
+type delayedDeadlineContext struct {
+	context.Context
+	deadline time.Time
+}
+
+func (c delayedDeadlineContext) Deadline() (time.Time, bool) { return c.deadline, true }
+func (c delayedDeadlineContext) Done() <-chan struct{}       { return nil }
+func (c delayedDeadlineContext) Err() error                  { return nil }
 
 func (b delayedBodyReadError) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
