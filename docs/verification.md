@@ -564,3 +564,5 @@ Windows 전체 테스트는 기존 TestWorkerCPUBudgetContainsDescendantLoad의 
 panic 복구가 context.Err뿐 아니라 이미 지난 요청 기한도 확인하도록 수정했다. 이 경로도 기존의 최대 250ms 본문 오류 결과 합류를 거쳐 request_body_timeout / Ignored로 귀속한다. 확인된 upstream 5xx와 완료된 업로드 뒤 backend timeout의 실패 보존 정책은 유지한다. 새 회귀의 응답 writer는 기한까지 복사를 대기시킨 뒤 ErrAbortHandler를 발생시키며, 실제 소켓 본문 timeout의 보고는 100ms 늦춰 합류 경계를 검증한다.
 
 최종 구현의 Gateway 전체 테스트·vet는 Windows에서, 전체 race·vet(실제 HAProxy 포함)는 Linux에서 통과했다. 정보성 응답과 본문 귀속 5조건은 Linux race 3회, Windows 최소 Go 1.25.0에서 2회 통과했다. 기한 검사만 제거한 음성 대조는 새 delayed_notification 조건에서 open/Requests=2/Failures=1로 실패했고, 검사를 복원하면 통과했다. 기존 로컬 Windows CPU 제한 실패는 별도로 남아 있다.
+
+최종 생산 커밋 995f3db77f19e9b18673dac976c8a691608f7d94도 Windows·Linux 공개 go install로 설치하고 v0.0.0-20261030144213-995f3db77f19 버전과 기본 설정 -check 성공을 확인했다. Linux HTTPS 혼합 설정 -check도 통과했다. README 고정값은 이 최종 스냅샷을 가리킨다.
