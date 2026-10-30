@@ -224,6 +224,11 @@ func TestWorkerCPUBudgetContainsDescendantLoad(t *testing.T) {
 			if result.Child.PID <= 0 || result.Child.PID == isolated.PID || result.Before.PID != isolated.PID || result.After.PID != isolated.PID {
 				t.Fatalf("missing live descendant: %+v", result)
 			}
+			sampleJSON, err := json.Marshal(result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("cpu_sample mode=%s %s", mode, sampleJSON)
 			if result.After.WorkUnits <= result.Before.WorkUnits || result.ChildAfter.WorkUnits <= result.Child.WorkUnits {
 				t.Fatalf("no actual compute work recorded: %+v", result)
 			}

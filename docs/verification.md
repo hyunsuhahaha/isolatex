@@ -566,3 +566,13 @@ panic 복구가 context.Err뿐 아니라 이미 지난 요청 기한도 확인�
 최종 구현의 Gateway 전체 테스트·vet는 Windows에서, 전체 race·vet(실제 HAProxy 포함)는 Linux에서 통과했다. 정보성 응답과 본문 귀속 5조건은 Linux race 3회, Windows 최소 Go 1.25.0에서 2회 통과했다. 기한 검사만 제거한 음성 대조는 새 delayed_notification 조건에서 open/Requests=2/Failures=1로 실패했고, 검사를 복원하면 통과했다. 기존 로컬 Windows CPU 제한 실패는 별도로 남아 있다.
 
 최종 생산 커밋 995f3db77f19e9b18673dac976c8a691608f7d94도 Windows·Linux 공개 go install로 설치하고 v0.0.0-20261030144213-995f3db77f19 버전과 기본 설정 -check 성공을 확인했다. Linux HTTPS 혼합 설정 -check도 통과했다. README 고정값은 이 최종 스냅샷을 가리킨다.
+
+## Windows CPU 집행의 반복 진단 기록 (2026-10-30)
+
+직전 기록의 CPU hard cap 실패를 우선 재검사했다. OS·quota registry는 읽기만 했고 호스트 설정은 변경하지 않았다. 변경 없는 코드에서 전용 CPU 검사 1회와 추가 3회가 통과했다. 이어 원자료 로그를 켠 검사에서 무제한 조건은 1.52초 구간에 약 11.98 CPU초, 제한 조건은 약 1.60초 구간에 0.16 CPU초를 보고했다. 제한된 부모·자손의 실제 계산량도 무제한 조건보다 작았다. 이전 실패 원인은 아직 확정하지 않았으며 이 관측을 런타임 수정에 의한 해결로 기록하지 않는다.
+
+이후 실패 때 설정 값만 남는 문제를 줄이기 위해 기존 native CPU 검사가 성공·실패 양쪽에서 JSON sample을 기록하도록 했다. Windows 반복 진단 스크립트는 Go JSON 이벤트·stderr와 소스·도구·OS 환경 및 모드별 계수를 새 디렉터리에 보존한다. 모드별 원자료와 pass가 모두 있어야 성공이며 소스가 실행 중 바뀐 경우도 실패로 기록한다. 운영 설정이나 CPU 집행 기준을 바꾸지 않는다.
+
+도구의 음성 대조는 Go가 pass 이벤트만 반환하고 계수가 없는 경우, 손상된 빈 sample을 반환하는 경우, 빌드가 종료 코드 7과 stderr로 실패하는 경우다. 모두 명령 실패·실패 summary·원본 로그 보존을 요구한다. 실제 네이티브 실행은 반복 2회(6 trial), 개선된 source fingerprint 기록으로 반복 3회(9 trial)를 통과했고 dirty 소스임을 표시했다. 최소 Go 1.25.0에서도 음성 대조와 실제 1회 실행이 통과했다.
+
+Windows Go 1.27.3 전체 테스트·vet와 Linux Go 1.27.3 전체 race·vet(실제 HAProxy 포함)가 통과했다. 별도 위임 cgroup의 실제 CPU 검사는 일반 사용자로 race 2회 통과했다. 최소 Go 1.25.0의 음성 대조 3회와 실제 진단 도구 실행도 통과했다.
