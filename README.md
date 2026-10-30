@@ -144,4 +144,4 @@ go vet ./...
 
 `-race`는 C 컴파일러가 필요하다. 테스트는 실제 HTTP와 자식 프로세스를 사용해 경로 경계, beta 포화, FIFO, 취소와 배정 경합, 타임아웃, 크래시 격리, 재시작, 포트 충돌, 종료 중 재시작 방지를 확인한다. Linux CI에서도 동일 검사를 수행한다.
 
-실제 실행 결과와 검증 환경은 [검증 기록](docs/verification.md)에 정리했다. 원격 CI는 Linux amd64/arm64·Windows amd64·macOS amd64/arm64와 Linux/Windows Go 1.25.x 호환성을 검사한다. Linux/macOS stable 행은 네이티브 배포 압축 해제본의 양방향 장애 검사도 실행한다. [그룹별 Prometheus 수집·경보 예제](examples/observability/README.md)는 준비 워커 소실·거부 비율과 런타임 수집 실패를 구분한다.
+실제 실행 결과와 검증 환경은 [검증 기록](docs/verification.md)에 정리했다. Windows CPU 집행은 [반복 진단 도구](docs/cpu-limits.md#windows-반복-진단-원자료)로 환경·커널 계수·실패 원자료를 남길 수 있다. 원격 CI는 Linux amd64/arm64·Windows amd64·macOS amd64/arm64와 Linux/Windows Go 1.25.x 호환성을 검사한다. Linux/macOS stable 행은 네이티브 배포 압축 해제본의 양방향 장애 검사도 실행한다. [그룹별 Prometheus 수집·경보 예제](examples/observability/README.md)는 준비 워커 소실·거부 비율과 런타임 수집 실패를 구분한다.

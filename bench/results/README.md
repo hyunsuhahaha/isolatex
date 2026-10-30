@@ -50,3 +50,9 @@ C에서는 이번 짧은 지연 부하가 보호 영역의 용량을 소모하�
 | C: 예산·프로세스 분리 | 120, 120, 120 | 6.11–6.18ms | 세 번 모두 유지 | 2, 2, 2 |
 
 모든 단계에서 생성 누락 0과 요청 회계 등식을 확인했다. 모든 trial에서 장애 대상 풀의 재시작 증가를 관측했다. 초당 한 번 크래시 요청을 예약해도 포화·연결 실패·이미 재시작 중인 워커 때문에 실제 재시작 수와 같지는 않다. C의 보호 성공 360/360과 PID 유지도 이 짧은 조건에서의 관측이며 운영 성능 보장으로 일반화하지 않는다. B의 독립 선택 상태라는 기존 해석 제약은 그대로다.
+
+## Windows CPU 집행 진단 원자료
+
+[2026-10-30-windows-cpu-enforcement.json](2026-10-30-windows-cpu-enforcement.json)은 `scripts/check-cpu-windows.ps1 -Count 3`의 summary 원본이다. 소스 e2b0b3ee7567c71def370df014cbfe231d80ab9c의 clean checkout, Go 1.27.3 windows/amd64, Windows build 26200.9711, 논리 CPU 12개에서 세 모드를 각각 3회 실행했다. Go 빌드 환경과 소스 fingerprint, 부모·자손 계수, Job CPU 시간과 실제 계산량을 포함한다. 모든 trial이 통과했다.
+
+이 결과는 위 A/B/C 요청 지연 실험과 다른 schema_version=1 진단 기록이다. CPU cycle을 시간·처리량으로 환산하지 않으며 성공한 짧은 검사 하나로 집행을 항상 보장하지 않는다. 같은 호스트에서 앞서 관측한 CPU 상한 실패의 원인은 아직 미확정이다. [CPU 운영 진단](../../docs/cpu-limits.md#windows-반복-진단-원자료)과 [실패·성공 검증 기록](../../docs/verification.md)을 함께 읽는다. events.jsonl/stderr.log 전체 원자료는 실행 디렉터리에 남으며 이 저장소에는 환경과 계수를 확인한 summary만 보관한다.

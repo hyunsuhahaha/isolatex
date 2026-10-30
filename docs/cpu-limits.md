@@ -53,3 +53,27 @@ sudo bash scripts/check-cpu-linux.sh "$(id -un)" "$(command -v go)"
 ```
 
 Linux CI의 위 검사는 systemd 254 이상에서 자신의 임시 service만 만들고, 지정한 일반 사용자로 실제 커널 검사를 race 2회 실행한다. 전역 컨트롤러 파일을 직접 변경하지 않으며 종료 시 정확히 해당 unit을 중단·회수한다. CPU controller가 없는 별도 하위 계층에서는 앱 실행과 cgroup 누출이 없어야 한다. 위임 환경변수가 없는 일반 Linux 테스트는 실제 CPU 검사를 skip하므로 CI의 별도 위임 검사를 생략하지 않는다. Windows는 일반 전체 테스트에서 실제 Job 검사를 실행한다.
+
+## Windows 반복 진단 원자료
+
+저장소 checkout과 Go SDK, PowerShell 7.2 이상이 있는 네이티브 Windows에서 실행한다.
+
+```powershell
+pwsh -NoProfile -File scripts/check-cpu-windows.ps1 -Count 3
+# Go가 PATH에 없을 때:
+pwsh -NoProfile -File scripts/check-cpu-windows.ps1 -GoBinary 'C:\Go\bin\go.exe' -Count 3
+```
+
+Count는 1–20이며 회마다 무제한 대조·CPU 단독·메모리 및 프로세스 수 병용의 실제 부모/자손 부하를 실행한다. 각 부하는 기존 검사와 같이 유한한 1.5초 계산 구간을 사용한다. 이 명령은 설정 readback만 확인하는 검사가 아니며 기존 CPU 사용량 상한·실제 계산 진행·보호 경로·PID 유지 검사를 그대로 실행한다. 실패를 재시도해서 숨기거나 합격선을 변경하지 않는다.
+
+기본 `.tools/cpu-check/<UTC 시각>-<고유 ID>/`에 새 실행 디렉터리를 만들고 경로를 출력한다. `-OutputDirectory`로 부모 위치를 바꿀 수 있다. 기존 기록을 덮어쓰거나 자동 삭제하지 않는다.
+
+- `summary.json`: Go 버전·빌드 환경, Windows build, CPU 수, 소스 커밋·dirty 여부, 테스트 인수, 모드별 Before/After/Child/ChildAfter/Elapsed 원자료와 결과를 담는다. `UsageUsec`는 Job 누적 CPU 마이크로초, `Cycles`는 해당 프로세스의 원시 cycle 계수, `Elapsed`는 나노초다. 작업량과 cycle 수를 시간·SLO로 변환하지 않는다.
+- `events.jsonl`: `go test -json`의 원본 이벤트이며 실패한 subtest와 원자료를 함께 보존한다.
+- `stderr.log`: Go 명령의 별도 stderr다. 컴파일 실패처럼 테스트 실행 전의 오류도 남긴다.
+
+소스 fingerprint는 Go 파일·go.mod/go.sum·진단 스크립트의 경로와 SHA-256으로 계산한다. 실행 전후의 fingerprint가 다르면 성공으로 보고하지 않는다. 이는 해당 파일들의 실행 시점 비교이며 OS·외부 도구의 보안 증명은 아니다. dirty=true인 기록은 커밋 SHA만으로 같은 소스라고 간주하지 않는다.
+
+Go 종료 코드가 0이어도 모든 모드의 반복별 pass 이벤트와 유효한 부모·자손 원자료가 없으면 진단은 실패한다. 이때도 보고서를 남기고 명령은 0이 아닌 코드로 끝난다. 원자료 누락·손상과 빌드 실패가 성공으로 기록되지 않는 음성 대조를 Windows CI에서 검사한다.
+
+2026-10-30에는 같은 로컬 Windows에서 CPU 상한 실패와 이후 변경 없는 코드의 성공을 모두 관측했다. 현재 원인은 미확정이며 이후 성공이 과거 실패의 해결을 뜻하지 않는다. [검증 기록](verification.md)을 참고하고 실패·성공 양쪽의 원자료와 환경을 함께 비교한다. Microsoft의 [CPU rate 계약](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_cpu_rate_control_information)과 [즉시 Job의 계수 조회](https://learn.microsoft.com/windows/win32/api/jobapi2/nf-jobapi2-queryinformationjobobject)를 구분해 읽으며, 설정 값 조회만으로 실제 집행을 단정하지 않는다.
