@@ -576,3 +576,5 @@ panic 복구가 context.Err뿐 아니라 이미 지난 요청 기한도 확인�
 도구의 음성 대조는 Go가 pass 이벤트만 반환하고 계수가 없는 경우, 손상된 빈 sample을 반환하는 경우, 빌드가 종료 코드 7과 stderr로 실패하는 경우다. 모두 명령 실패·실패 summary·원본 로그 보존을 요구한다. 실제 네이티브 실행은 반복 2회(6 trial), 개선된 source fingerprint 기록으로 반복 3회(9 trial)를 통과했고 dirty 소스임을 표시했다. 최소 Go 1.25.0에서도 음성 대조와 실제 1회 실행이 통과했다.
 
 Windows Go 1.27.3 전체 테스트·vet와 Linux Go 1.27.3 전체 race·vet(실제 HAProxy 포함)가 통과했다. 별도 위임 cgroup의 실제 CPU 검사는 일반 사용자로 race 2회 통과했다. 최소 Go 1.25.0의 음성 대조 3회와 실제 진단 도구 실행도 통과했다.
+
+공개 소스 e2b0b3ee7567c71def370df014cbfe231d80ab9c를 clean 상태로 반복 3회 실행해 9 trial을 모두 통과했다. source_dirty=false와 source_changed_during_run=false를 확인하고 [원본 summary](../bench/results/2026-10-30-windows-cpu-enforcement.json)를 보관했다. 이 성공 기록은 이전 간헐적 실패의 원인을 해결했다는 뜻이 아니다. 런타임 생산 코드는 변경하지 않아 README의 실행 파일 설치 고정값은 유지했다.
