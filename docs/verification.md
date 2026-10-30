@@ -556,3 +556,5 @@ Windows Go 1.27.3 전체 테스트·vet, 실제 HAProxy를 포함한 Linux Go 1.
 Linux Go 1.27.3 전체 race·vet(실제 HAProxy 포함), Windows vet가 통과했다. 신규 정보성 응답 회귀는 Linux race와 Windows stable에서 각각 20회, Windows 최소 Go 1.25.0에서 10회 통과했다.
 
 Windows 전체 테스트는 기존 TestWorkerCPUBudgetContainsDescendantLoad의 cpu_only/combined에서 실패했다. 변경 없는 master 01b7305를 별도 checkout에서 같은 검사로 실행해 두 조건의 실패를 다시 확인했다. 이 호스트는 Job flags=5/rate=100을 보고하지만 1.52초 구간에 합산 CPU 시간이 약 11.9초 증가하고 부모·자손의 계산 작업도 진행했다. 정보성 응답 변경과 별개로 이 호스트에서 CPU hard cap 집행을 확인하지 못했다. 원인은 아직 확정하지 않았으며 해당 검사를 skip하거나 합격선을 완화하지 않았다. Windows 전체 테스트 통과로 보고하지 않는다.
+
+공개 커밋 88392a521a47ca7c06a63410e08438fb6d0db95f를 Windows·Linux에서 각각 go install하고 v0.0.0-20261030142114-88392a521a47 버전과 기본 설정 -check 성공을 확인했다. Linux는 HTTPS 혼합 예시 -check도 통과했다. README 설치 고정값을 이 생산 스냅샷으로 갱신했다.
