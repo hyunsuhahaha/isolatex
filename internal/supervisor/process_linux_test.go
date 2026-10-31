@@ -64,3 +64,44 @@ func TestLinuxStopTerminatesDescendants(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+func TestLinuxCloseReclaimsProcessGroupWithoutPriorSignal(t *testing.T) {
+	cmd := exec.Command("sh", "-c", `sleep 60 & echo $!; wait`)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	control, err := startManagedProcess(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := 0
+	t.Cleanup(func() {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if child > 0 {
+			_ = syscall.Kill(child, syscall.SIGKILL)
+		}
+		_ = cmd.Wait()
+		_ = control.close()
+	})
+	scanner := bufio.NewScanner(stdout)
+	if !scanner.Scan() {
+		t.Fatalf("child PID missing: %v", scanner.Err())
+	}
+	child, err = strconv.Atoi(scanner.Text())
+	if err != nil || child < 1 {
+		t.Fatal("invalid child PID")
+	}
+	if err := control.close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, pid := range []int{cmd.Process.Pid, child} {
+		stopped, err := processGroupDescendantStopped(pid)
+		if err != nil || !stopped {
+			t.Fatalf("close returned while process %d remained live: stopped=%v error=%v", pid, stopped, err)
+		}
+	}
+	if err := control.close(); err != nil {
+		t.Fatalf("repeated close: %v", err)
+	}
+}

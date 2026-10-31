@@ -32,3 +32,31 @@ Linux는 `/proc`로 자손 상태를 확인하고 macOS는 기본 `ps`를 사용
 다른 슬롯·그룹의 워커는 계속 동작한다. `failed` 슬롯은 자동으로 다시 열리지 않으므로 `/status`와 오류 로그에서 원인을 확인하고 남은 OS 자원을 운영 환경에서 조사한 뒤 런타임을 다시 시작한다. 이 정책은 정리 실패 이후 추가 자원 예산이 쌓이는 것을 막으며, 이미 정리에 실패한 자원이 모두 회수됐다는 뜻은 아니다.
 
 종료 요청 후 직접 자식의 종료가 확인되지 않을 때의 대기 상한과 terminal 상태는 [종료 대기 정책](worker-exit.md)을 따른다.
+
+
+## Linux 기본 프로세스 그룹 정리 확인
+
+Linux에서 `resources`를 생략한 워커도 세대의 `close` 단계에서 그룹에 SIGKILL을
+요청하고 실행 중인 멤버가 남는지 확인한다. 이전의 별도 signal 호출 여부에 의존하지
+않는다. 그룹이 사라지면 즉시 완료하며, 남아 있으면 `/proc`에서 해당 그룹 멤버의
+상태를 조회한다. zombie/dead 멤버만 남은 상태는 실행 중단으로 인정한다. 다만
+zombie인 리더에게 다른 스레드가 남아 있으면 완료로 보지 않는다. 직접 자식의 Wait는
+별도로 유지한다. 이는 고아 zombie를 수거했다는 뜻이 아니다.
+
+확인 polling은 최대 1초이며 디렉터리는 128개씩 읽고 전체 65,536 entry, stat 레코드는
+4KiB로 제한한다. Getpgid로 다른 그룹을 먼저 제외하므로 다른 그룹의 stat 권한이나
+명령 내용은 읽지 않는다. 멤버를 확인할 수 없거나 읽기·형식·예산 오류가 생기면
+같은 1초 예산 안에서 다시 관측하고, 끝내 확인되지 않으면 정리 실패로 반환한다. 결과는 세대별로 보존해 이후 close가 성공으로 바꾸지 않는다.
+이때 기존 `worker_resource_cleanup_failed`와 terminal `failed` 정책에 따라 대체 워커를
+추가하지 않는다. 다른 그룹은 자체 수명과 요청 예산으로 계속 동작한다.
+
+프로세스 그룹과 같은 PID namespace를 보여 주는 procfs와 워커 멤버의 stat 읽기
+권한이 필요하다. 숨겨진 멤버·자격 증명/namespace 변경을 안전하게 탐지하는 샌드박스가
+아니며, 그룹을 이탈한 자손은 기존 프로세스 그룹 계약 밖이다. 커널 호출 자체가 막힌
+경우 userspace polling 기한이 그 호출을 중단하지는 못한다. 숨김 정책·대규모 process
+inventory·커널 대기 때문에 확인이 실패하면 로그의 원래 PID와 OS 상태를 조사한다.
+
+Linux cgroup 자원을 설정한 워커는 기존 cgroup.kill과 디렉터리 회수 검사를 유지한다.
+macOS의 프로세스 그룹에는 이번 Linux 전용 procfs 확인을 적용하지 않는다.
+[`proc_pid_stat` 필드](https://www.man7.org/linux/man-pages/man5/proc_pid_stat.5.html)와
+[커널 procfs 문서](https://www.kernel.org/doc/html/latest/filesystems/proc.html)를 따른다.

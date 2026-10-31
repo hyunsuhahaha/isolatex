@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -173,7 +172,13 @@ func TestManagedGroupReapsTermResistantDescendantOnCrashAndStop(t *testing.T) {
 	g.Process.Env["ISOLATEX_TEST_CHILD_PID_FILE"] = filename
 	g.Process.Env["ISOLATEX_TEST_CHILD_MODE"] = "ignore-term"
 	c.Bulkheads["isolated"] = g
-	s := New(c, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	var logs exitBudgetLogs
+	s := New(c, slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Log(logs.text())
+		}
+	})
 	if err := s.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
