@@ -669,3 +669,8 @@ The restored implementation passed Windows full tests/vet, Linux full race/vet
 with HAProxy, twenty consecutive deterministic delayed-notification cases under
 Linux race detection, and all five attribution modes twice on minimum Windows
 Go 1.25.0. The previous failing head is superseded rather than merged or retried.
+
+The final production source 5c93aec1fb0a57f518cd80cbd54adf9c8710b14b installed
+through the public Go module path on Windows and Linux as
+v0.0.0-20261031074220-5c93aec1fb0a. Both platforms passed version/default/HTTPS
+configuration checks. README now pins this snapshot including both runtime fixes.
