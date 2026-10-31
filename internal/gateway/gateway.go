@@ -198,6 +198,9 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	expired := func() bool { return !time.Now().Before(deadline) || errors.Is(ctx.Err(), context.DeadlineExceeded) }
 	_ = rc.SetReadDeadline(deadline)
 	_ = rc.SetWriteDeadline(deadline)
+	// Transport owns the tracked upload read. Prevent net/http's response
+	// flush from draining the raw server body concurrently outside that tracker.
+	_ = rc.EnableFullDuplex()
 	r = r.WithContext(requestdial.Bind(ctx, ctx))
 	body := &requestBody{ReadCloser: http.MaxBytesReader(w, r.Body, g.cfg.MaxBodyBytes), readDone: make(chan struct{})}
 	r.Body = body
@@ -375,6 +378,19 @@ func (b *requestBody) Read(p []byte) (int, error) {
 		b.readOnce.Do(func() { close(b.readDone) })
 	}
 	return n, err
+}
+
+// Transport closes the upload body when an early response ends or aborts.
+// net/http's server body Close may itself drain unread input and return the
+// socket timeout before a concurrent Read can observe ErrBodyReadAfterClose.
+func (b *requestBody) Close() error {
+	err := b.ReadCloser.Close()
+	var timeout net.Error
+	if errors.As(err, &timeout) && timeout.Timeout() {
+		b.timedOut.Store(true)
+		b.readOnce.Do(func() { close(b.readDone) })
+	}
+	return err
 }
 
 type trackingWriter struct {

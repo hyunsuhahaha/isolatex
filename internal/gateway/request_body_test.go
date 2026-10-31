@@ -125,6 +125,10 @@ func checkRequestBodyCircuit(t *testing.T, mode string) {
 			if mode == "delayed_notification" {
 				r = r.WithContext(delayedDeadlineContext{Context: r.Context(), deadline: time.Now().Add(time.Second)})
 			}
+			if mode == "delayed_notification" && r.Method == http.MethodPost {
+				deadline, _ := r.Context().Deadline()
+				r.Body = &heldUploadRead{ReadCloser: r.Body, deadline: deadline}
+			}
 			r.Body = delayedBodyReadError{r.Body}
 			var writer http.ResponseWriter = w
 			if mode == "delayed_notification" && r.Method == http.MethodPost {
@@ -212,6 +216,27 @@ type deadlineAbortWriter struct {
 }
 
 func (w deadlineAbortWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w deadlineAbortWriter) WriteHeader(status int) {
+	w.ResponseWriter.WriteHeader(status)
+	// Force the same header-flush/body-drain race as ReverseProxy's initial
+	// asynchronous flush, rather than relying on goroutine scheduling.
+	_ = http.NewResponseController(w.ResponseWriter).Flush()
+}
+
+type heldUploadRead struct {
+	io.ReadCloser
+	deadline time.Time
+	started  bool
+}
+
+func (b *heldUploadRead) Read(p []byte) (int, error) {
+	if b.started {
+		time.Sleep(max(0, time.Until(b.deadline.Add(50*time.Millisecond))))
+	}
+	b.started = true
+	return b.ReadCloser.Read(p)
+}
+
 func (w deadlineAbortWriter) Write([]byte) (int, error) {
 	timer := time.NewTimer(max(0, time.Until(w.deadline)))
 	defer timer.Stop()

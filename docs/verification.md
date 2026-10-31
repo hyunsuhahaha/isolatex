@@ -606,3 +606,71 @@ Linux native CPU test passed with race detection twice. The published source
 on Windows and Linux as v0.0.0-20261031063311-6937ca31f8a5; version, default config
 and HTTPS mixed config checks passed. The installed Windows executable rejected
 `queue_size: -0.9` with the group, field and YAML line in the error.
+
+
+## Bounded worker exit confirmation (2026-10-31)
+
+The Windows CPU reporter first passed three repetitions (nine native trials) on
+clean master d7cb0fb029eb3cabdb6a4e3a7619c662c3dddda1 without changing host policy.
+The previous intermittent hard-cap failure remains unexplained.
+
+A separate lifecycle regression reproduced that `stopChild` waited indefinitely
+after forced termination: an exit channel that never completed exceeded the new
+six-second test deadline on unchanged code. The test releases that channel after
+failure so the negative control does not leak a goroutine. The implementation
+retains one second of graceful waiting, bounds forced-exit confirmation to three
+more seconds, and classifies missing confirmation as terminal resource cleanup
+uncertainty. Startup readiness timeout now preserves that cause instead of
+replacing it with only a startup-timeout message.
+
+Native integration tests launch actual HTTP workers and suppress the isolated
+worker's termination requests until native cleanup. Startup timeout and runtime
+shutdown both finish with the isolated slot failed, zero restarts and no backoff;
+the startup case also checks protected HTTP progress and unchanged PID. Even if
+final native cleanup succeeds, the unconfirmed exit is not erased. Final logs
+say worker_shutdown_incomplete rather than workers_stopped. The tests model
+ineffective termination requests, not a real kernel uninterruptible wait.
+
+Windows Go 1.27.3 full tests/vet and Linux Go 1.27.3 full race/vet with real HAProxy
+passed. Minimum Windows Go 1.25.0 passed the exit tests and supervisor vet. The
+[operating policy](worker-exit.md) describes the remaining native-call and OS
+cleanup limits; bounded channel waiting does not prove every process disappeared.
+
+Final exit tests including shutdown-log assertions passed twice under Linux race
+detection and once with minimum Windows Go 1.25.0. Public Go installation of
+f40e1e7f3c20b63c79e4e1f509067cd886871a2b succeeded on Windows and Linux as
+v0.0.0-20261031073145-f40e1e7f3c20, with version/default/HTTPS configuration checks.
+The README installation snapshot now points to that verified runtime source.
+
+
+### CI-discovered upload-close timeout attribution
+
+The first final-head CI attempt for the bounded-exit change failed an existing
+Gateway delayed_notification regression on Linux stable: the breaker opened with
+Requests=2 and Failures=1 for a stalled client upload. This was investigated rather
+than retried as a passing build. Sixty local runs of the original scheduling-based
+fixture passed, so that fixture alone did not reliably expose the race.
+
+The strengthened real TCP fixture holds the second tracked upload Read until
+50ms after the socket deadline and explicitly flushes response headers. On the
+unfixed implementation it reproducibly opens the breaker. Instrumentation showed
+the underlying server body Close returning a net.OpError timeout, followed by the
+tracked Read returning ErrBodyReadAfterClose. The timeout evidence was lost because
+only Read was observed, and server response flushing could drain the raw body.
+
+Admitted proxy requests now enable full duplex to suppress raw server draining,
+and the tracked body Close records an actual timeout. Removing either change is
+a failing negative control (open, Requests=2, Failures=1). Both controls restore
+the source automatically. With both changes the five attribution modes pass,
+including completed-body backend failure and already observed upstream 5xx.
+No attribution threshold or grace period was relaxed.
+
+The restored implementation passed Windows full tests/vet, Linux full race/vet
+with HAProxy, twenty consecutive deterministic delayed-notification cases under
+Linux race detection, and all five attribution modes twice on minimum Windows
+Go 1.25.0. The previous failing head is superseded rather than merged or retried.
+
+The final production source 5c93aec1fb0a57f518cd80cbd54adf9c8710b14b installed
+through the public Go module path on Windows and Linux as
+v0.0.0-20261031074220-5c93aec1fb0a. Both platforms passed version/default/HTTPS
+configuration checks. README now pins this snapshot including both runtime fixes.

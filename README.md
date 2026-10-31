@@ -26,7 +26,7 @@ Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프�
 Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 개발 스냅샷이다.
 
 ```sh
-go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@6937ca31f8a5da8f55dfca0b08cf6a6a5ecc68f7
+go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@5c93aec1fb0a57f518cd80cbd54adf9c8710b14b
 isolatex -version
 ```
 
@@ -50,6 +50,8 @@ go build -o bin/isolatex.exe ./cmd/isolatex
 ```
 
 Linux·macOS에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 보내고 직접 자식을 수거한다. Windows에서는 워커별 Job Object로 자손 수명을 관리하고, 런타임 소유자 Job이 생성 중 또는 런타임 종료 시 남는 자식을 회수한다. HTTP drain 후 Windows의 Job 종료는 강제 종료이며 앱 종료 hook 실행을 보장하지 않는다. 이외 OS는 직접 자식 종료 범위다. Linux·Windows의 선택적 메모리 예산은 워커 하나와 자손 전체에 적용한다. 선택적 CPU 상한도 지원하며 공유 DB 한도는 설정하지 않는다. [Unix 프로세스 그룹](docs/process-groups.md) · [Windows 프로세스 수명](docs/windows-processes.md) · [메모리 예산](docs/memory-limits.md)
+
+워커 종료 확인은 정상 종료 요청 후 1초, 강제 종료 요청 후 추가 3초까지 기다린다. 확인되지 않은 슬롯은 `failed`로 멈추며 대체 워커를 생성하지 않는다. [종료 대기와 미확인 정리](docs/worker-exit.md)
 
 관리 포트는 `127.0.0.1:9090`, 게이트웨이는 `127.0.0.1:8080`이다. Ctrl+C 또는 SIGTERM으로 요청을 drain한 후 워커를 종료한다. `-debug`는 요청별 그룹·결과·소요 시간 로그를 추가한다. 요청 URL, query와 헤더는 런타임 요청 로그에 기록하지 않는다. 워커 stdout/stderr는 그대로 전달되므로 앱 로그의 비밀값은 앱에서 제거해야 한다.
 
