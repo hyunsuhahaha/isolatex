@@ -705,3 +705,11 @@ Windows Go 1.27.3 full tests/vet and Linux full race/vet with real HAProxy passe
 Minimum Windows Go 1.25.0 ran the actual three-mode test and negative case twice;
 Linux's privately delegated native CPU tests passed race twice. The executable's
 production source is unchanged, so the verified README install pin is retained.
+
+
+The published clean source e030eceb7532b5397665d61858a7f503bc2797f9 passed the
+native reporter with Count=3 (nine trials), source_dirty=false and
+source_changed_during_run=false. The original
+[summary](../bench/results/2026-10-31-windows-cpu-work-contrast.json) preserves
+all parent/child work and elapsed samples. No production executable changes were
+made; the public-install snapshot remains 5c93aec1fb0a57f518cd80cbd54adf9c8710b14b.

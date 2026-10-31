@@ -56,3 +56,13 @@ C에서는 이번 짧은 지연 부하가 보호 영역의 용량을 소모하�
 [2026-10-30-windows-cpu-enforcement.json](2026-10-30-windows-cpu-enforcement.json)은 `scripts/check-cpu-windows.ps1 -Count 3`의 summary 원본이다. 소스 e2b0b3ee7567c71def370df014cbfe231d80ab9c의 clean checkout, Go 1.27.3 windows/amd64, Windows build 26200.9711, 논리 CPU 12개에서 세 모드를 각각 3회 실행했다. Go 빌드 환경과 소스 fingerprint, 부모·자손 계수, Job CPU 시간과 실제 계산량을 포함한다. 모든 trial이 통과했다.
 
 이 결과는 위 A/B/C 요청 지연 실험과 다른 schema_version=1 진단 기록이다. CPU cycle을 시간·처리량으로 환산하지 않으며 성공한 짧은 검사 하나로 집행을 항상 보장하지 않는다. 같은 호스트에서 앞서 관측한 CPU 상한 실패의 원인은 아직 미확정이다. [CPU 운영 진단](../../docs/cpu-limits.md#windows-반복-진단-원자료)과 [실패·성공 검증 기록](../../docs/verification.md)을 함께 읽는다. events.jsonl/stderr.log 전체 원자료는 실행 디렉터리에 남으며 이 저장소에는 환경과 계수를 확인한 summary만 보관한다.
+
+
+[2026-10-31-windows-cpu-work-contrast.json](2026-10-31-windows-cpu-work-contrast.json)
+is the original Count=3 summary from clean source
+e030eceb7532b5397665d61858a7f503bc2797f9 on the same 12-CPU Windows host.
+All nine trials passed with the additional limited/unlimited work-rate check.
+Work rate is the sum of parent and child WorkUnits deltas divided by Elapsed;
+each repetition starts with its own unlimited reference. This is diagnostic
+compute contrast, not an A/B/C request benchmark, an exact CPU quota measurement
+or an explanation of the earlier intermittent enforcement failure.
