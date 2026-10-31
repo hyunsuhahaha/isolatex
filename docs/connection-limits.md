@@ -116,3 +116,21 @@ Gateway는 upstream의 최종 응답 전 정보성 응답(예: 100 Continue, 103
 정보성 응답을 사용자에게 전달하는 Go Transport 경로는 각 1xx 뒤에 헤더 한도를 다시 시작한다. 따라서 개별 헤더 크기 제한만으로 응답 개수와 누적 처리를 제한할 수 없다. IsolateX는 초과한 정보성 응답을 클라이언트로 전달하기 전에 upstream 요청을 중단하고 최종 HTTP 502 / `upstream_informational_limit`을 반환한다. 이 요청은 차단기 실패로 집계하고 실행 슬롯과 워커 선택을 반환한다. 이미 전달한 정상 1xx 응답은 취소되지 않는다. 요청 기한 초과·클라이언트 취소가 함께 발생하면 기존 오류 우선순위를 따른다.
 
 운영 시 `isolatex_requests_total{outcome="upstream_informational_limit"}` 증가를 확인하고 upstream의 Early Hints·정보성 응답 반복과 헤더 크기를 조사한다. 제한 안의 정보성 응답은 기존처럼 전달하며 최종 응답 결과로 차단기에 반영한다. 이 한도는 요청 전체 기한이나 응답 본문 스트리밍 기한을 대체하지 않는다.
+
+
+## Early responses while an upload remains open
+
+Admitted proxy requests enable HTTP/1 full duplex through ResponseController so
+response-header flushing does not make the server drain the original request
+body outside the gateway's upload tracker. This permits an upstream response to
+begin before the client finishes uploading; it does not enable the unsupported
+WebSocket, gRPC or SSE protocols. The same body limit and request/socket deadlines
+still apply.
+
+Closing an upload body can itself drain pending input and return a socket read
+timeout. That is client timeout evidence just like a timeout returned by Read.
+The gateway observes both before completing circuit attribution within the
+existing 250ms grace. A confirmed request-body timeout is ignored by the breaker;
+a completed upload followed by a backend stall/reset still counts as failure,
+and an already observed upstream 5xx remains failure evidence. Merely closing a
+body, or getting ErrBodyReadAfterClose, is not sufficient client-timeout evidence.

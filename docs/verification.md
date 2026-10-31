@@ -641,3 +641,31 @@ detection and once with minimum Windows Go 1.25.0. Public Go installation of
 f40e1e7f3c20b63c79e4e1f509067cd886871a2b succeeded on Windows and Linux as
 v0.0.0-20261031073145-f40e1e7f3c20, with version/default/HTTPS configuration checks.
 The README installation snapshot now points to that verified runtime source.
+
+
+### CI-discovered upload-close timeout attribution
+
+The first final-head CI attempt for the bounded-exit change failed an existing
+Gateway delayed_notification regression on Linux stable: the breaker opened with
+Requests=2 and Failures=1 for a stalled client upload. This was investigated rather
+than retried as a passing build. Sixty local runs of the original scheduling-based
+fixture passed, so that fixture alone did not reliably expose the race.
+
+The strengthened real TCP fixture holds the second tracked upload Read until
+50ms after the socket deadline and explicitly flushes response headers. On the
+unfixed implementation it reproducibly opens the breaker. Instrumentation showed
+the underlying server body Close returning a net.OpError timeout, followed by the
+tracked Read returning ErrBodyReadAfterClose. The timeout evidence was lost because
+only Read was observed, and server response flushing could drain the raw body.
+
+Admitted proxy requests now enable full duplex to suppress raw server draining,
+and the tracked body Close records an actual timeout. Removing either change is
+a failing negative control (open, Requests=2, Failures=1). Both controls restore
+the source automatically. With both changes the five attribution modes pass,
+including completed-body backend failure and already observed upstream 5xx.
+No attribution threshold or grace period was relaxed.
+
+The restored implementation passed Windows full tests/vet, Linux full race/vet
+with HAProxy, twenty consecutive deterministic delayed-notification cases under
+Linux race detection, and all five attribution modes twice on minimum Windows
+Go 1.25.0. The previous failing head is superseded rather than merged or retried.
