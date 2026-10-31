@@ -789,3 +789,8 @@ Windows Go 1.27.3 full tests/vet and Linux full race/vet with real HAProxy passe
 The new actual-request logging cases passed twenty repetitions under Linux race
 detection and three on minimum Windows Go 1.25.0, with targeted vet. Log delivery
 budgets and HTTP/circuit outcome classification were not changed.
+
+Public Go install of production source 9dac6bc42964e7a18427003c11c88a2a4ed22be1
+passed on Windows/Linux as v0.0.0-20261031104106-9dac6bc42964. Version, default
+configuration and HTTPS mixed configuration checks passed on both executables.
+README now pins that verified development snapshot.
