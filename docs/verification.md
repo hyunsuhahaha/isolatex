@@ -578,3 +578,24 @@ panic 복구가 context.Err뿐 아니라 이미 지난 요청 기한도 확인�
 Windows Go 1.27.3 전체 테스트·vet와 Linux Go 1.27.3 전체 race·vet(실제 HAProxy 포함)가 통과했다. 별도 위임 cgroup의 실제 CPU 검사는 일반 사용자로 race 2회 통과했다. 최소 Go 1.25.0의 음성 대조 3회와 실제 진단 도구 실행도 통과했다.
 
 공개 소스 e2b0b3ee7567c71def370df014cbfe231d80ab9c를 clean 상태로 반복 3회 실행해 9 trial을 모두 통과했다. source_dirty=false와 source_changed_during_run=false를 확인하고 [원본 summary](../bench/results/2026-10-30-windows-cpu-enforcement.json)를 보관했다. 이 성공 기록은 이전 간헐적 실패의 원인을 해결했다는 뜻이 아니다. 런타임 생산 코드는 변경하지 않아 README의 실행 파일 설치 고정값은 유지했다.
+
+
+## Integer configuration coercion (2026-10-31)
+
+Seven new regression cases failed on the unchanged implementation: fractional
+version, global admitted/body budgets, group concurrency, negative fractional
+queue size, readiness threshold and breaker minimum request count were all
+accepted after silent truncation. For example, `queue_size: -0.9` became zero;
+`failure_threshold: 0.9` became zero and selected the default threshold.
+
+The configuration decoder now validates YAML integer tags against the existing
+Go schema, including aliases and mapping merges. It rejects explicit null and
+non-integer scalar types for integer settings. It preserves the public Go field
+types, duration strings, fractional failure ratios, strict unknown-field checks
+and existing range/sum validation. Schema/node pairs are visited only once and
+recursion is bounded. The input cap remains 1 MiB. See [migration notes](config-integers.md).
+
+Windows Go 1.27.3 full tests/vet and Linux Go 1.27.3 full race/vet with real
+HAProxy passed. The native Windows CPU containment test also passed as part of
+the full suite; the earlier intermittent Windows enforcement failure remains
+unresolved and is not claimed fixed by this configuration change.
