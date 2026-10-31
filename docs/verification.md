@@ -635,3 +635,9 @@ Windows Go 1.27.3 full tests/vet and Linux Go 1.27.3 full race/vet with real HAP
 passed. Minimum Windows Go 1.25.0 passed the exit tests and supervisor vet. The
 [operating policy](worker-exit.md) describes the remaining native-call and OS
 cleanup limits; bounded channel waiting does not prove every process disappeared.
+
+Final exit tests including shutdown-log assertions passed twice under Linux race
+detection and once with minimum Windows Go 1.25.0. Public Go installation of
+f40e1e7f3c20b63c79e4e1f509067cd886871a2b succeeded on Windows and Linux as
+v0.0.0-20261031073145-f40e1e7f3c20, with version/default/HTTPS configuration checks.
+The README installation snapshot now points to that verified runtime source.
