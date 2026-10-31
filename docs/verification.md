@@ -606,3 +606,32 @@ Linux native CPU test passed with race detection twice. The published source
 on Windows and Linux as v0.0.0-20261031063311-6937ca31f8a5; version, default config
 and HTTPS mixed config checks passed. The installed Windows executable rejected
 `queue_size: -0.9` with the group, field and YAML line in the error.
+
+
+## Bounded worker exit confirmation (2026-10-31)
+
+The Windows CPU reporter first passed three repetitions (nine native trials) on
+clean master d7cb0fb029eb3cabdb6a4e3a7619c662c3dddda1 without changing host policy.
+The previous intermittent hard-cap failure remains unexplained.
+
+A separate lifecycle regression reproduced that `stopChild` waited indefinitely
+after forced termination: an exit channel that never completed exceeded the new
+six-second test deadline on unchanged code. The test releases that channel after
+failure so the negative control does not leak a goroutine. The implementation
+retains one second of graceful waiting, bounds forced-exit confirmation to three
+more seconds, and classifies missing confirmation as terminal resource cleanup
+uncertainty. Startup readiness timeout now preserves that cause instead of
+replacing it with only a startup-timeout message.
+
+Native integration tests launch actual HTTP workers and suppress the isolated
+worker's termination requests until native cleanup. Startup timeout and runtime
+shutdown both finish with the isolated slot failed, zero restarts and no backoff;
+the startup case also checks protected HTTP progress and unchanged PID. Even if
+final native cleanup succeeds, the unconfirmed exit is not erased. Final logs
+say worker_shutdown_incomplete rather than workers_stopped. The tests model
+ineffective termination requests, not a real kernel uninterruptible wait.
+
+Windows Go 1.27.3 full tests/vet and Linux Go 1.27.3 full race/vet with real HAProxy
+passed. Minimum Windows Go 1.25.0 passed the exit tests and supervisor vet. The
+[operating policy](worker-exit.md) describes the remaining native-call and OS
+cleanup limits; bounded channel waiting does not prove every process disappeared.

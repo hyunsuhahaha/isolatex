@@ -41,3 +41,5 @@ go vet ./...
 정리 완료 검사는 실제 워커·자손 트리에서 close 반환 직후 0ms 대기로 확인한다. 자손 20개를 만든 트리로 프로세스 목록 버퍼 확장 경로도 검사한다.
 
 Microsoft의 [TerminateJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject), [Job 프로세스 목록](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_process_id_list), [Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects), [AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject), [프로세스 생성 플래그](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags) 계약을 따른다.
+
+종료 요청 후 직접 자식의 종료가 확인되지 않을 때의 대기 상한과 terminal 상태는 [종료 대기 정책](worker-exit.md)을 따른다.

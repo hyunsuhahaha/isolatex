@@ -27,16 +27,17 @@ type Supervisor struct {
 	log   *slog.Logger
 	// Serialize admission to the entire lifetime, including port preflight and
 	// every WaitGroup.Add. Stop permanently closes admission before waiting.
-	lifecycle sync.Mutex
-	started   bool
-	stopped   bool
-	wg        sync.WaitGroup
-	cancel    context.CancelFunc
-	logs      chan logLine
-	dropped   atomic.Uint64
-	now       func() time.Time
-	wait      func(context.Context, time.Duration) bool
-	start     func(*exec.Cmd, *config.Resources) (*processControl, error)
+	lifecycle     sync.Mutex
+	started       bool
+	stopped       bool
+	wg            sync.WaitGroup
+	cancel        context.CancelFunc
+	logs          chan logLine
+	dropped       atomic.Uint64
+	cleanupFailed atomic.Bool
+	now           func() time.Time
+	wait          func(context.Context, time.Duration) bool
+	start         func(*exec.Cmd, *config.Resources) (*processControl, error)
 }
 
 type logLine struct {
@@ -139,7 +140,11 @@ func (s *Supervisor) Stop() {
 	s.lifecycle.Unlock()
 	s.wg.Wait()
 	if first {
-		s.log.Info("workers_stopped", "dropped_log_chunks", s.dropped.Load())
+		if s.cleanupFailed.Load() {
+			s.log.Error("worker_shutdown_incomplete", "dropped_log_chunks", s.dropped.Load())
+		} else {
+			s.log.Info("workers_stopped", "dropped_log_chunks", s.dropped.Load())
+		}
 	}
 }
 
@@ -169,8 +174,13 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 			err = s.watch(ctx, cmd, control, done, p, index, g.Readiness)
 			// Also clean remaining descendants after a direct child's exit.
 			control.signal(true)
-			if closeErr := control.close(); closeErr != nil {
-				s.log.Error("worker_resource_cleanup_failed", "group", name, "worker", index, "error", closeErr)
+			closeErr := control.close()
+			if errors.Is(err, errResourceCleanup) {
+				closeErr = errors.Join(err, closeErr)
+			}
+			if closeErr != nil {
+				s.cleanupFailed.Store(true)
+				s.log.Error("worker_resource_cleanup_failed", "group", name, "worker", index, "pid", pid, "error", closeErr)
 				// Never stack another generation's budget on resources whose
 				// teardown could not be confirmed. Other slots remain independent.
 				p.Set(index, false, 0, "failed")
@@ -179,6 +189,7 @@ func (s *Supervisor) run(ctx context.Context, name string, g config.Group, index
 		} else if errors.Is(err, errResourceCleanup) {
 			// Startup can allocate a Job/cgroup before process creation fails.
 			// An unconfirmed teardown is terminal even without a running child.
+			s.cleanupFailed.Store(true)
 			s.log.Error("worker_resource_cleanup_failed", "group", name, "worker", index, "error", err)
 			p.Set(index, false, 0, "failed")
 			return
@@ -235,8 +246,7 @@ func (s *Supervisor) watch(ctx context.Context, cmd *exec.Cmd, control *processC
 			return stopChild(control, done)
 		case <-startupDone:
 			p.Set(index, false, cmd.Process.Pid, "draining")
-			_ = stopChild(control, done)
-			return fmt.Errorf("readiness startup timeout")
+			return errors.Join(fmt.Errorf("readiness startup timeout"), stopChild(control, done))
 		case <-tick.C:
 			origin := p.Snapshot()[index].URL
 			probeCtx := ctx
@@ -308,7 +318,16 @@ func stopChild(control *processControl, done <-chan error) error {
 		return err
 	case <-t.C:
 		control.signal(true)
-		return <-done
+		// A kill request is not exit confirmation (for example a stuck kernel
+		// wait or a failed native termination). Include room for WaitDelay's
+		// one-second pipe drain, but never block every Stop caller forever.
+		t.Reset(3 * time.Second)
+		select {
+		case err := <-done:
+			return err
+		case <-t.C:
+			return fmt.Errorf("%w: worker exit not confirmed after forced termination", errResourceCleanup)
+		}
 	}
 }
 
