@@ -117,10 +117,7 @@ func run(output io.Writer) error {
 		g.RegisterLogDrops(logs.Dropped)
 	}
 	defer g.Close()
-	server := func(handler http.Handler) *http.Server {
-		return &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 64 << 10}
-	}
-	public, admin := server(g), server(g.Admin())
+	public, admin := newHTTPServer(g, logger, "public"), newHTTPServer(g.Admin(), logger, "admin")
 	admin.WriteTimeout = 5 * time.Second
 	errors := make(chan error, 2)
 	go func() { errors <- public.Serve(publicIngress) }()
@@ -143,4 +140,15 @@ func run(output io.Writer) error {
 		return serveErr
 	}
 	return nil
+}
+
+func newHTTPServer(handler http.Handler, logger *slog.Logger, listener string) *http.Server {
+	return &http.Server{
+		Handler:           handler,
+		ErrorLog:          slog.NewLogLogger(logger.With("listener", listener).Handler(), slog.LevelError),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       30 * time.Second,
+		MaxHeaderBytes:    64 << 10,
+	}
 }
