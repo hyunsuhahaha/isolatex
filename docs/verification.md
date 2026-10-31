@@ -674,3 +674,34 @@ The final production source 5c93aec1fb0a57f518cd80cbd54adf9c8710b14b installed
 through the public Go module path on Windows and Linux as
 v0.0.0-20261031074220-5c93aec1fb0a. Both platforms passed version/default/HTTPS
 configuration checks. README now pins this snapshot including both runtime fixes.
+
+
+## Independent Windows CPU work contrast (2026-10-31)
+
+Before edits, the native reporter passed three repetitions (nine trials) on clean
+master 242ac37b6d905b11dfee0c085c0f930b35f8e1a3. Review found that the existing
+supplementary CPU-time upper bound could pass with frozen Job time accounting,
+even if actual computation remained at its uncapped rate: flags/rate and positive
+cycles/work alone cannot demonstrate a reduction. This is a validation gap, not a
+newly reproduced runtime enforcement failure.
+
+The complete Windows CPU test now compares the aggregate actual batch rate in
+limited trials with the same run's uncapped trial on hosts with at most 64 logical
+CPUs. The conservative ceiling is 75%, in addition to every previous native
+assertion. The actual uncapped trial must fail this contrast when evaluated as a
+limited result. A focused negative case has native hard-cap flags but zero Job
+time and unchanged work; it must fail. Reduced work with frozen time remains valid.
+Elapsed normalization, missing child progress and changed processor count are
+also covered. Larger hosts and partial subtest selection explicitly report that
+this supplementary contrast was not performed.
+
+On the local 12-CPU host the first actual implementation run recorded limited to
+uncapped work-rate ratios of 0.017116 and 0.017803 for CPU-only and combined modes,
+while keeping protected HTTP progress and worker generations. No production
+runtime limit or host policy changed. The older intermittent Windows CPU
+observation remains unresolved; these diagnostic changes do not claim to fix it.
+
+Windows Go 1.27.3 full tests/vet and Linux full race/vet with real HAProxy passed.
+Minimum Windows Go 1.25.0 ran the actual three-mode test and negative case twice;
+Linux's privately delegated native CPU tests passed race twice. The executable's
+production source is unchanged, so the verified README install pin is retained.

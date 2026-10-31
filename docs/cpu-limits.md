@@ -30,7 +30,7 @@ Linux는 250m를 `cpu.max = 25000 100000`으로 설정한다. 2000m는 두 코�
 
 Windows는 코어 수 대신 Job CPU rate를 사용한다. 상위 Job에 CPU rate 제한이 없으면 시스템 CPU 기준이며, 제한이 있는 상위 Job에 중첩되면 바로 위 Job의 CPU 할당에 대한 비율이 된다. 따라서 Linux의 500m와 Windows의 50%는 같은 설정이 아니다. DFSS가 적용되는 Remote Desktop Services 환경 등 API가 지원되지 않는 조건에서는 워커 시작이 실패한다. [Windows CPU rate 계약](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_cpu_rate_control_information)을 따른다.
 
-메모리·생성 수·CPU의 숫자는 YAML 정수로 지정한다. 소수값(`0.9`, `10.0` 포함)·숫자 문자열·불리언·비유한 수는 거부한다. 소수값이 정수 0으로 잘려 제한이 꺼지는 일을 막는다. 정수 anchor·merge는 지원하며 잘못된 소수값을 anchor·merge로 넣어도 거부한다. 0·생략·YAML null은 해당 한도를 비활성화한다. `resources`에는 적어도 하나의 양수 한도가 필요하다. 플랫폼에 맞지 않는 양수 옵션·음수·Windows 100% 초과·Linux 최소 미만·quota 산술 오버플로는 설정 오류다. macOS 등은 현재 CPU 옵션을 지원하지 않는다.
+메모리·생성 수·CPU의 숫자는 YAML 정수로 지정한다. 소수값(`0.9`, `10.0` 포함)·숫자 문자열·불리언·비유한 수는 거부한다. 소수값이 정수 0으로 잘려 제한이 꺼지는 일을 막는다. 정수 anchor·merge는 지원하며 잘못된 소수값을 anchor·merge로 넣어도 거부한다. 0·생략은 해당 한도를 비활성화하며 명시적인 YAML null은 설정 오류다. `resources`에는 적어도 하나의 양수 한도가 필요하다. 플랫폼에 맞지 않는 양수 옵션·음수·Windows 100% 초과·Linux 최소 미만·quota 산술 오버플로는 설정 오류다. macOS 등은 현재 CPU 옵션을 지원하지 않는다.
 
 ## 격리와 운영 조건
 
@@ -77,3 +77,29 @@ Count는 1–20이며 회마다 무제한 대조·CPU 단독·메모리 및 프�
 Go 종료 코드가 0이어도 모든 모드의 반복별 pass 이벤트와 유효한 부모·자손 원자료가 없으면 진단은 실패한다. 이때도 보고서를 남기고 명령은 0이 아닌 코드로 끝난다. 원자료 누락·손상과 빌드 실패가 성공으로 기록되지 않는 음성 대조를 Windows CI에서 검사한다.
 
 2026-10-30에는 같은 로컬 Windows에서 CPU 상한 실패와 이후 변경 없는 코드의 성공을 모두 관측했다. 현재 원인은 미확정이며 이후 성공이 과거 실패의 해결을 뜻하지 않는다. [검증 기록](verification.md)을 참고하고 실패·성공 양쪽의 원자료와 환경을 함께 비교한다. Microsoft의 [CPU rate 계약](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_cpu_rate_control_information)과 [즉시 Job의 계수 조회](https://learn.microsoft.com/windows/win32/api/jobapi2/nf-jobapi2-queryinformationjobobject)를 구분해 읽으며, 설정 값 조회만으로 실제 집행을 단정하지 않는다.
+
+
+## Windows 실제 작업량 대조
+
+Job의 기존 CPU 시간 계수가 증가하지 않는 환경에서도 단순한 설정 조회와 작업
+진행만으로 집행 성공을 판정하지 않는다. 전체 CPU 검사는 같은 실행의 무제한
+trial을 기준으로 부모·자손의 합산 계산 batch 수를 실제 경과 시간으로 나눈 뒤
+CPU 단독·병용 trial과 비교한다. 시간 계수와 독립적인 보조 대조다.
+
+고정 fixture는 프로세스마다 CPU goroutine 4개를 사용한다. 논리 CPU 1–64개에서는
+1% 설정의 트리 전체 허용량이 최대 0.64 CPU이므로, 제한 trial의 계산 속도가
+무제한 대조의 75% 이하여야 한다. 이는 큰 미집행을 검출하는 느슨한 smoke 기준이며
+정확한 1% 사용률·코어 시간·운영 성능 보장이 아니다. 기존 Job 설정·시간 상한·각
+프로세스의 실제 진행·보호 경로 검사도 유지한다. 실제 무제한 trial을 제한 결과로
+평가하면 이 작업량 검사를 통과해서는 안 된다는 음성 대조도 실행한다.
+
+과도한 호스트 경쟁 때문에 무제한 기준 trial부터 굶으면 작업량 감소를 입증하지
+못할 수 있다. 이 경우 집행 상태와 호스트 부하를 조사하고 원자료를 보존한다.
+실패를 자동 재시도하거나 CPU 시간 계수가 0이라는 이유로 성공으로 바꾸지 않는다.
+
+64개 초과 논리 CPU에서는 1%가 이 고정 부하를 충분히 제한한다고 단정하지 않으므로
+작업량 대조를 집행 증거로 사용하지 않는다. 기존 native 검사는 계속 실행하며,
+`cpu_work_reduction` 로그에 `checked=false`를 명시한다. 한 limited subtest만 선택하면
+무제한 기준이 없어 작업량 대조를 수행하지 않았다고 기록한다. 반복 진단 스크립트는
+항상 세 모드를 모두 실행한다. `events.jsonl`에서 모드별 checked·ratio·ceiling을
+확인하고 summary의 원본 작업량·경과 시간과 함께 해석한다.

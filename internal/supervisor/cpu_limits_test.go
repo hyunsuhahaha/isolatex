@@ -135,6 +135,7 @@ func TestWorkerCPUBudgetContainsDescendantLoad(t *testing.T) {
 	if runtime.GOOS == "linux" && parent == "" {
 		t.Skip("requires delegated CPU controller")
 	}
+	var reference cpuResult
 	for _, mode := range []string{"unlimited", "cpu_only", "combined"} {
 		t.Run(mode, func(t *testing.T) {
 			c := fixture(t)
@@ -272,6 +273,27 @@ func TestWorkerCPUBudgetContainsDescendantLoad(t *testing.T) {
 					if float64(result.After.UsageUsec-result.Before.UsageUsec) > budget {
 						t.Fatalf("CPU usage exceeded Job budget: %+v", result)
 					}
+				}
+			}
+
+			if runtime.GOOS == "windows" {
+				if mode == "unlimited" {
+					reference = result
+					// The actual uncapped native trial must fail the work
+					// reduction check, independent of its accounting counters.
+					if _, checked, err := cpuWorkReduction(reference, result); checked && err == nil {
+						t.Fatal("uncapped negative control passed work reduction check")
+					}
+				} else if reference.Elapsed > 0 {
+					ratio, checked, err := cpuWorkReduction(reference, result)
+					t.Logf("cpu_work_reduction mode=%s checked=%t ratio=%.6f ceiling=0.75", mode, checked, ratio)
+					if err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					// A user may select only one subtest. Existing native
+					// quota checks still run; the reporter selects all modes.
+					t.Log("CPU work contrast unavailable: include unlimited subtest")
 				}
 			}
 			waitFor(t, func() bool { return successes.Load() > started })
