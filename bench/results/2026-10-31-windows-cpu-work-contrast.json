@@ -1,0 +1,562 @@
+{
+  "schema_version": 1,
+  "started_utc": "2026-10-31T08:39:01.8781584+00:00",
+  "finished_utc": "2026-10-31T08:39:19.2585480+00:00",
+  "source_commit": "e030eceb7532b5397665d61858a7f503bc2797f9",
+  "source_dirty": false,
+  "source_fingerprint_sha256": "47649ff9d9c0fb9c8f3cbcbc569c44fe701665bcff9f2e6c2e11b875c77e3e4d",
+  "source_changed_during_run": false,
+  "go_version": "go version go1.27.3 windows/amd64",
+  "go_environment": {
+    "CGO_ENABLED": "0",
+    "GOARCH": "amd64",
+    "GOEXPERIMENT": "",
+    "GOFLAGS": "",
+    "GOOS": "windows",
+    "GOTOOLCHAIN": "auto",
+    "GOVERSION": "go1.27.3"
+  },
+  "windows_build": "26200.9711",
+  "processor_count": 12,
+  "test_arguments": [
+    "test",
+    "-json",
+    "./internal/supervisor",
+    "-run",
+    "^TestWorkerCPUBudgetContainsDescendantLoad$",
+    "-count",
+    "3",
+    "-timeout",
+    "135s"
+  ],
+  "repetitions": 3,
+  "go_exit_code": 0,
+  "passed_trials": 9,
+  "invalid_events": 0,
+  "complete": true,
+  "passed": true,
+  "trials": [
+    {
+      "mode": "unlimited",
+      "result": {
+        "Before": {
+          "PID": 8356,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 1,
+          "CPUs": 12,
+          "UsageUsec": 15625,
+          "Throttled": 0,
+          "Cycles": 48084002,
+          "WorkUnits": 0
+        },
+        "After": {
+          "PID": 8356,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 12015625,
+          "Throttled": 0,
+          "Cycles": 23373856981,
+          "WorkUnits": 1437737
+        },
+        "Child": {
+          "PID": 24324,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 93750,
+          "Throttled": 0,
+          "Cycles": 28293540,
+          "WorkUnits": 0
+        },
+        "ChildAfter": {
+          "PID": 24324,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 12015625,
+          "Throttled": 0,
+          "Cycles": 23327838212,
+          "WorkUnits": 1430959
+        },
+        "Elapsed": 1520649600
+      }
+    },
+    {
+      "mode": "cpu_only",
+      "result": {
+        "Before": {
+          "PID": 7900,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 1,
+          "CPUs": 12,
+          "UsageUsec": 15625,
+          "Throttled": 0,
+          "Cycles": 43351279,
+          "WorkUnits": 0
+        },
+        "After": {
+          "PID": 7900,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 31250,
+          "Throttled": 0,
+          "Cycles": 675087846,
+          "WorkUnits": 37357
+        },
+        "Child": {
+          "PID": 6736,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 31250,
+          "Throttled": 0,
+          "Cycles": 27877767,
+          "WorkUnits": 0
+        },
+        "ChildAfter": {
+          "PID": 6736,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 31250,
+          "Throttled": 0,
+          "Cycles": 545621862,
+          "WorkUnits": 31383
+        },
+        "Elapsed": 1953881200
+      }
+    },
+    {
+      "mode": "combined",
+      "result": {
+        "Before": {
+          "PID": 15964,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 1,
+          "CPUs": 12,
+          "UsageUsec": 15625,
+          "Throttled": 0,
+          "Cycles": 35674681,
+          "WorkUnits": 0
+        },
+        "After": {
+          "PID": 15964,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 93750,
+          "Throttled": 0,
+          "Cycles": 552408918,
+          "WorkUnits": 30920
+        },
+        "Child": {
+          "PID": 22424,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 93750,
+          "Throttled": 0,
+          "Cycles": 27882826,
+          "WorkUnits": 0
+        },
+        "ChildAfter": {
+          "PID": 22424,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 93750,
+          "Throttled": 0,
+          "Cycles": 405760754,
+          "WorkUnits": 23762
+        },
+        "Elapsed": 1597377800
+      }
+    },
+    {
+      "mode": "unlimited",
+      "result": {
+        "Before": {
+          "PID": 8084,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 1,
+          "CPUs": 12,
+          "UsageUsec": 15625,
+          "Throttled": 0,
+          "Cycles": 38777781,
+          "WorkUnits": 0
+        },
+        "After": {
+          "PID": 8084,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 12046875,
+          "Throttled": 0,
+          "Cycles": 23385311711,
+          "WorkUnits": 1468491
+        },
+        "Child": {
+          "PID": 14184,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 15625,
+          "Throttled": 0,
+          "Cycles": 27002628,
+          "WorkUnits": 0
+        },
+        "ChildAfter": {
+          "PID": 14184,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 12046875,
+          "Throttled": 0,
+          "Cycles": 23334804715,
+          "WorkUnits": 1446765
+        },
+        "Elapsed": 1519662900
+      }
+    },
+    {
+      "mode": "cpu_only",
+      "result": {
+        "Before": {
+          "PID": 8300,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 1,
+          "CPUs": 12,
+          "UsageUsec": 0,
+          "Throttled": 0,
+          "Cycles": 37129096,
+          "WorkUnits": 0
+        },
+        "After": {
+          "PID": 8300,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 78125,
+          "Throttled": 0,
+          "Cycles": 542334608,
+          "WorkUnits": 30590
+        },
+        "Child": {
+          "PID": 5376,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 78125,
+          "Throttled": 0,
+          "Cycles": 27665995,
+          "WorkUnits": 0
+        },
+        "ChildAfter": {
+          "PID": 5376,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 78125,
+          "Throttled": 0,
+          "Cycles": 424741485,
+          "WorkUnits": 24270
+        },
+        "Elapsed": 1692863900
+      }
+    },
+    {
+      "mode": "combined",
+      "result": {
+        "Before": {
+          "PID": 6632,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 1,
+          "CPUs": 12,
+          "UsageUsec": 15625,
+          "Throttled": 0,
+          "Cycles": 39181878,
+          "WorkUnits": 0
+        },
+        "After": {
+          "PID": 6632,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 46875,
+          "Throttled": 0,
+          "Cycles": 542030956,
+          "WorkUnits": 29490
+        },
+        "Child": {
+          "PID": 21192,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 15625,
+          "Throttled": 0,
+          "Cycles": 29634289,
+          "WorkUnits": 0
+        },
+        "ChildAfter": {
+          "PID": 21192,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 46875,
+          "Throttled": 0,
+          "Cycles": 397619332,
+          "WorkUnits": 22166
+        },
+        "Elapsed": 1593167300
+      }
+    },
+    {
+      "mode": "unlimited",
+      "result": {
+        "Before": {
+          "PID": 24016,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 1,
+          "CPUs": 12,
+          "UsageUsec": 46875,
+          "Throttled": 0,
+          "Cycles": 40999912,
+          "WorkUnits": 0
+        },
+        "After": {
+          "PID": 24016,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 11968750,
+          "Throttled": 0,
+          "Cycles": 23091010315,
+          "WorkUnits": 1429648
+        },
+        "Child": {
+          "PID": 18016,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 125000,
+          "Throttled": 0,
+          "Cycles": 27690131,
+          "WorkUnits": 0
+        },
+        "ChildAfter": {
+          "PID": 18016,
+          "Location": "",
+          "Quota": "",
+          "Flags": 0,
+          "Rate": 0,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 11968750,
+          "Throttled": 0,
+          "Cycles": 23071535484,
+          "WorkUnits": 1423414
+        },
+        "Elapsed": 1520581000
+      }
+    },
+    {
+      "mode": "cpu_only",
+      "result": {
+        "Before": {
+          "PID": 23140,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 1,
+          "CPUs": 12,
+          "UsageUsec": 15625,
+          "Throttled": 0,
+          "Cycles": 39638138,
+          "WorkUnits": 0
+        },
+        "After": {
+          "PID": 23140,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 156250,
+          "Throttled": 0,
+          "Cycles": 548497617,
+          "WorkUnits": 31201
+        },
+        "Child": {
+          "PID": 11072,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 31250,
+          "Throttled": 0,
+          "Cycles": 26757370,
+          "WorkUnits": 0
+        },
+        "ChildAfter": {
+          "PID": 11072,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 156250,
+          "Throttled": 0,
+          "Cycles": 418683981,
+          "WorkUnits": 23586
+        },
+        "Elapsed": 1684815900
+      }
+    },
+    {
+      "mode": "combined",
+      "result": {
+        "Before": {
+          "PID": 8188,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 1,
+          "CPUs": 12,
+          "UsageUsec": 15625,
+          "Throttled": 0,
+          "Cycles": 39394832,
+          "WorkUnits": 0
+        },
+        "After": {
+          "PID": 8188,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 93750,
+          "Throttled": 0,
+          "Cycles": 533983733,
+          "WorkUnits": 30008
+        },
+        "Child": {
+          "PID": 11908,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 93750,
+          "Throttled": 0,
+          "Cycles": 26899463,
+          "WorkUnits": 0
+        },
+        "ChildAfter": {
+          "PID": 11908,
+          "Location": "",
+          "Quota": "",
+          "Flags": 5,
+          "Rate": 100,
+          "Processes": 2,
+          "CPUs": 12,
+          "UsageUsec": 93750,
+          "Throttled": 0,
+          "Cycles": 398121937,
+          "WorkUnits": 23378
+        },
+        "Elapsed": 1595680900
+      }
+    }
+  ]
+}
