@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -177,6 +178,14 @@ func Decode(r io.Reader) (Config, error) {
 	var extra any
 	if err := d.Decode(&extra); err != io.EOF {
 		return c, fmt.Errorf("expected one YAML document")
+	}
+	// Inspect scalar tags before accepting yaml.v3's float-to-int coercion.
+	var document yaml.Node
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return c, err
+	}
+	if err := validateIntegerNodes(&document, reflect.TypeOf(c), "config", 0, make(map[integerNodeKey]bool)); err != nil {
+		return c, err
 	}
 	return c, c.Validate()
 }

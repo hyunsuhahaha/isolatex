@@ -17,6 +17,8 @@
 
 ## 실행
 
+용량·워커 수·포트·상태 판정 횟수는 YAML 정수로 지정해야 한다. 소수나 따옴표로 감싼 숫자는 시작 시 거부한다. [정수 설정과 마이그레이션](docs/config-integers.md)
+
 Go 1.25 이상이 필요하다. 저장소 루트에서 실행한다. HTTP 처리는 표준 라이브러리, Windows 프로세스 수명 제어는 `golang.org/x/sys/windows`, 설정과 관측은 YAML 파서와 Prometheus 공식 Go 클라이언트를 사용한다.
 
 Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프로젝트가 보안 수정을 지원하는 버전의 최신 패치로 빌드한다. Windows 의존성의 알려진 취약점 수정을 위해 최소 버전을 기존 1.23에서 올렸다. [보안 범위와 검사](SECURITY.md)
@@ -24,7 +26,7 @@ Go 1.25는 컴파일 호환성 하한이다. 운영용 실행 파일은 Go 프�
 Go 모듈 경로는 `github.com/hyunsuhahaha/isolatex`다. 체크아웃한 소스에서 CLI를 설치하려면 `go install ./cmd/isolatex`를 실행한다. 아직 정식 릴리스 태그는 없다. 저장소를 복제하지 않고 CLI만 설치할 때는 검토한 개발 커밋을 고정한다. 다음은 공개 모듈 경로에서 설치·버전·설정 검사를 통과한 개발 스냅샷이다.
 
 ```sh
-go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@995f3db77f19e9b18673dac976c8a691608f7d94
+go install github.com/hyunsuhahaha/isolatex/cmd/isolatex@6937ca31f8a5da8f55dfca0b08cf6a6a5ecc68f7
 isolatex -version
 ```
 
