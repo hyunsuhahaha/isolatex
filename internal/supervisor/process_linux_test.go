@@ -78,11 +78,10 @@ func TestLinuxCloseReclaimsProcessGroupWithoutPriorSignal(t *testing.T) {
 	child := 0
 	t.Cleanup(func() {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		if child > 0 {
-			_ = syscall.Kill(child, syscall.SIGKILL)
-		}
-		_ = cmd.Wait()
+		// Keep the unreaped root PID reserved until group cleanup finishes;
+		// never signal a descendant PID that init may already have recycled.
 		_ = control.close()
+		_ = cmd.Wait()
 	})
 	scanner := bufio.NewScanner(stdout)
 	if !scanner.Scan() {
