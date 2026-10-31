@@ -754,3 +754,10 @@ the targeted native/parser/inventory/live-group tests three times under race and
 supervisor vet. All other packages had passed the initial Linux full race run;
 Windows full tests/vet passed. A concurrent Windows CPU three-mode run also passed
 three repetitions. The earlier failed Linux runs remain recorded above.
+
+Public Go installation of production source
+9a2f229b43a0f5cf8fad73b2e78bc3160334002e passed on Windows and Linux as
+v0.0.0-20261031094238-9a2f229b43a0. Both installed executables passed version,
+default configuration and HTTPS mixed configuration checks. README pins this
+verified development snapshot. Native cgroup and non-Linux process cleanup
+implementations are unchanged.
