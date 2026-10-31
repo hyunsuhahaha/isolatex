@@ -599,3 +599,10 @@ Windows Go 1.27.3 full tests/vet and Linux Go 1.27.3 full race/vet with real
 HAProxy passed. The native Windows CPU containment test also passed as part of
 the full suite; the earlier intermittent Windows enforcement failure remains
 unresolved and is not claimed fixed by this configuration change.
+
+Minimum Windows Go 1.25.0 configuration/CLI tests and vet passed. The delegated
+Linux native CPU test passed with race detection twice. The published source
+6937ca31f8a5da8f55dfca0b08cf6a6a5ecc68f7 installed through the public Go module path
+on Windows and Linux as v0.0.0-20261031063311-6937ca31f8a5; version, default config
+and HTTPS mixed config checks passed. The installed Windows executable rejected
+`queue_size: -0.9` with the group, field and YAML line in the error.
