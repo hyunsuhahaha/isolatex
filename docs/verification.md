@@ -713,3 +713,51 @@ source_changed_during_run=false. The original
 [summary](../bench/results/2026-10-31-windows-cpu-work-contrast.json) preserves
 all parent/child work and elapsed samples. No production executable changes were
 made; the public-install snapshot remains 5c93aec1fb0a57f518cd80cbd54adf9c8710b14b.
+
+
+## Linux process-group close confirmation (2026-10-31)
+
+Open PRs were empty and the previous final-head CI checks were all successful.
+The unchanged Windows native three-mode CPU test passed before this work; the
+older intermittent CPU enforcement failure remains unresolved.
+
+A new actual Linux shell/sleep tree reproduced that an unbudgeted worker control's
+close returned nil while its parent and descendant remained live. No prior signal
+was issued; test cleanup then killed and reaped its known process tree. With the
+fix, close itself requests group SIGKILL and confirms that no live members remain.
+The same assertion passes immediately after close without adding an external
+wait. Repeated close retains the first result and closed controls cannot signal
+future groups.
+
+The scan uses Getpgid before reading matching proc stat records, streams directory
+entries and bounds its polling, inventory entries and stat record size. Parser
+coverage includes commands with whitespace/newlines/parentheses, live and D/T
+states, zombies, zombie leaders with remaining threads, malformed records and
+thread counts. Inventory tests cover malformed member records, unrelated groups,
+vanishing records, expired budgets and inaccessible inventory. A read-only query
+of the test process's live group must fail confirmation within the polling budget;
+it never sends termination signals to that group. The targeted Linux race tests
+passed three repetitions. The native cgroup path is unchanged.
+
+The first Linux full race run failed the existing resistant-descendant restart
+case. Added failure-only captured supervisor logs identified an invalid process
+stat group while confirming the dying descendant, rather than startup delay.
+Standalone crash/stop cases passed, but the full supervisor repetition reproduced
+the scan error. A procfs scan is not atomic: confirmation now retries observations
+within the same one-second budget and requires either a successful no-live-member
+scan or kernel ESRCH. Persistent scan errors still fail closed with their cause.
+No wait/assertion deadline was relaxed and no failed run is treated as a pass.
+
+After the non-atomic scan fix, the complete Linux supervisor suite passed twice
+under race detection with full repository vet. Minimum Linux Go 1.25.0 passed
+the targeted native/parser/inventory/live-group tests three times under race and
+supervisor vet. All other packages had passed the initial Linux full race run;
+Windows full tests/vet passed. A concurrent Windows CPU three-mode run also passed
+three repetitions. The earlier failed Linux runs remain recorded above.
+
+Public Go installation of production source
+9a2f229b43a0f5cf8fad73b2e78bc3160334002e passed on Windows and Linux as
+v0.0.0-20261031094238-9a2f229b43a0. Both installed executables passed version,
+default configuration and HTTPS mixed configuration checks. README pins this
+verified development snapshot. Native cgroup and non-Linux process cleanup
+implementations are unchanged.

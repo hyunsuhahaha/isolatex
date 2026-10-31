@@ -60,6 +60,9 @@ func startManagedProcessWithResources(cmd *exec.Cmd, resources *config.Resources
 			closed = true
 			if cg != nil {
 				cleanupResult = cg.close()
+			} else {
+				signalProcess(cmd, true)
+				cleanupResult = waitLinuxProcessGroup(cmd.Process.Pid)
 			}
 			return cleanupResult
 		},
