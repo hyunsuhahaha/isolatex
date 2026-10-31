@@ -55,7 +55,7 @@ Linux·macOS에서는 워커별 프로세스 그룹에 SIGTERM 후 SIGKILL을 �
 
 관리 포트는 `127.0.0.1:9090`, 게이트웨이는 `127.0.0.1:8080`이다. Ctrl+C 또는 SIGTERM으로 요청을 drain한 후 워커를 종료한다. `-debug`는 요청별 그룹·결과·소요 시간 로그를 추가한다. 요청 URL, query와 헤더는 런타임 요청 로그에 기록하지 않는다. 워커 stdout/stderr는 그대로 전달되므로 앱 로그의 비밀값은 앱에서 제거해야 한다.
 
-`-version`은 설정이나 워커를 시작하지 않고 버전·소스 커밋·빌드 시간을 출력한다. 로그는 최대 256레코드, 레코드당 64KiB의 비동기 큐를 거쳐 전달한다. 저장 대상이 멈추거나 큐가 넘쳐도 요청과 워커 감시를 기다리게 하지 않는다. 드롭·전달 실패는 `isolatex_dropped_log_records_total`로 집계한다. 종료 시 로그 전달 대기는 최대 250ms이며 전달을 보장하지 않는다.
+`-version`은 설정이나 워커를 시작하지 않고 버전·소스 커밋·빌드 시간을 출력한다. 로그는 최대 256레코드, 레코드당 64KiB의 비동기 큐를 거쳐 전달한다. 저장 대상이 멈추거나 큐가 넘쳐도 요청과 워커 감시를 기다리게 하지 않는다. 드롭·전달 실패는 `isolatex_dropped_log_records_total`로 집계한다. HTTP 오류 진단도 같은 유한 큐를 사용하며 프록시는 `group`, 서버는 `listener`와 ERROR 심각도를 기록한다. [HTTP 진단 로그](docs/logging.md) 종료 시 로그 전달 대기는 최대 250ms이며 전달을 보장하지 않는다.
 
 배포 묶음 생성은 Linux/WSL2 또는 macOS에서 `bash scripts/build-dist.sh dev`로 실행한다. Linux amd64/arm64, Windows amd64, macOS amd64/arm64용 실행 파일·데모·설정·문서와 `SHA256SUMS`를 `dist/`에 만든다. Linux/macOS 추출본은 `bash scripts/smoke-dist.sh <추출 폴더>`로 양방향 장애 검사를 실행한다. GitHub의 수동 `distribution` 워크플로도 동일 빌드 스크립트를 사용해 artifact를 생성하며 릴리스를 게시하지 않는다. [배포 검증](docs/distribution.md) · [기여 방법](CONTRIBUTING.md)
 

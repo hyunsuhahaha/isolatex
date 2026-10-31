@@ -209,6 +209,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	outcome = "success"
 	result = breaker.Success
 	proxy := httputil.ReverseProxy{
+		ErrorLog:  slog.NewLogLogger(g.log.With("group", b.name).Handler(), slog.LevelError),
 		Rewrite:   func(pr *httputil.ProxyRequest) { pr.SetURL(target); pr.SetXForwarded() },
 		Transport: informationalTransport{base: b.transport},
 		ModifyResponse: func(resp *http.Response) error {

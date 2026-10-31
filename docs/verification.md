@@ -761,3 +761,31 @@ v0.0.0-20261031094238-9a2f229b43a0. Both installed executables passed version,
 default configuration and HTTPS mixed configuration checks. README pins this
 verified development snapshot. Native cgroup and non-Linux process cleanup
 implementations are unchanged.
+
+
+## Explicit bounded HTTP diagnostic routing (2026-10-31)
+
+Open PRs were empty and all fourteen previous final-head checks were successful.
+The unchanged native Windows CPU three-mode test passed before this increment.
+
+HTTP diagnostics previously inherited the process-global standard logger rather
+than the supplied Gateway/server logger, losing per-instance attribution and
+inheriting its level. The CLI already bridges the global logger through
+slog.SetDefault into the bounded writer; this is not a claim that the normal CLI
+configuration bypassed that writer. Explicit bridges remove the ambient setting
+dependency and record ERROR plus group or public/admin listener identity.
+
+A real truncated upstream response with a separately blocked global logger kept
+its handler from finishing beyond the fixture's 100ms request budget; the new
+regression failed after 750ms. Public/admin panic fixtures likewise retained the
+failed connection with a blocked global logger. The supplied instance logger
+used a bounded writer whose destination was also held. After wiring explicit
+ErrorLog bridges, both listener cases and the proxy case completed; repeated
+faults/protected traffic progressed and drops were counted. JSON checks using
+actual requests also verify severity and group/listener attribution after draining
+the bounded writer. The targeted Windows tests passed three repetitions.
+
+Windows Go 1.27.3 full tests/vet and Linux full race/vet with real HAProxy passed.
+The new actual-request logging cases passed twenty repetitions under Linux race
+detection and three on minimum Windows Go 1.25.0, with targeted vet. Log delivery
+budgets and HTTP/circuit outcome classification were not changed.
